@@ -15,6 +15,9 @@ To install PGS, you must first get the original source code files
   newnotfk.f, ppvalu.f, putit.f, round.f, setdatx2.f, setdatx3.f,
   setdatx4.f, setupq.f, smooth.f, spli2d.f, splint.f
 
+If you have wget on your system, the default makefile should install
+the latest version of these files if they are not available.
+
 Once these files are installed in the npsol/ directory, perform the
 following steps to install NPSOL:
 
