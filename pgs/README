@@ -1,0 +1,37 @@
+This directory contains the files needed to make PGS.  The source
+code for PGS is not distributed with NTG, so you will need to obtain
+that separately.  The sources files for PGS are available at
+
+  http://pages.cs.wisc.edu/~deboor/pgs/
+
+INSTALLATION
+------------
+To install PGS, you must first get the original source code files
+(see URL above).  The following files are required for NTG:
+
+  banfac.f, banslv.f, bchfac.f, bchslv.f, bsplpp.f, bsplvb.f, bsplvd.f,
+  bspp2d.f, bvalue.f, chol1d.f, colpnt.f, cubspl.f, difequ.f, eqblok.f,
+  interv.f, knots.f, l2appr.f, l2err.f, l2knts.f, l2main.f, newnot.f,
+  newnotfk.f, ppvalu.f, putit.f, round.f, setdatx2.f, setdatx3.f,
+  setdatx4.f, setupq.f, smooth.f, spli2d.f, splint.f
+
+Once these files are installed in the npsol/ directory, perform the
+following steps to install NPSOL:
+
+  1. Edit Makefile and make sure everything is pointed where you want
+  2. Type 'make" to make the PGS library
+  3. If everything works, type 'make install' to install the library
+
+Local changes
+-------------
+
+30 Sept 1999, Mark Milam: 
+  * There seemed to be problem with inconsistent array dimensions
+    in the files bvalue.f l2appr.f l2err.f
+  * Bad declarations
+      + bvalue.f line 65 t declared with two different array sizes.
+      + l2appr.f line 66 same as bvalue.f
+      + l2err.f line 29 ftau and error declare with 2 different array sizes
+    I commented out the declarations I though were mistakes and used
+    the ones that made more sense
+  * removed colloc.f from the library

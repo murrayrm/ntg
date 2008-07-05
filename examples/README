@@ -1,0 +1,9 @@
+This directory contains working examples of NTG.  Currently the only
+example is the van der Pol system.
+
+For each example, there is a file <example>.txt that describes the
+system.  Type "make <example>" to compile the example and "<example>"
+to run it.
+
+RMM, 3 Feb 02
+

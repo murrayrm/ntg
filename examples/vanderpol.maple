@@ -1,0 +1,15 @@
+# maple code to create the C code for the van der Pol
+# non-linear oscillator coded for ntj
+#
+# written for Maple V Release 5
+#
+# kcm 10 Feb 2000
+
+readlib(C):
+with(linalg):
+
+u:=zdd + z - (1-z^2)*zd:
+f:=1/2 * (z^2 + zd^2 + u^2):
+df:=jacobian([f],[z,zd,zdd]):
+C(f,filename="unintegratedcost.raw",optimized,ansi):
+C(df,filename="dunintegratedcost.raw",optimized,ansi):

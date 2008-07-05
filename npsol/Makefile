@@ -1,0 +1,26 @@
+# Makefile for NPSOL
+# RMM, 1 Feb 02 based on installed copy
+
+LIBDIR	= ../lib
+
+F77     = f77
+FFLAGS  = -O3
+
+NPSRC   = chsubs.f   srsubs.f  npsubs.f
+LSSRC   = mcsubs.f   opsubs.f  blas1.f      blas2.f   \
+          f06subs.f  cmsubs.f  qrsubs.f     lssubs.f
+
+libnpsol.a: $(NPSRC:.f=.o) $(LSSRC:.f=.o)
+	ar ruv $@ *.o
+	ranlib $@
+
+install:
+	-mkdir $(LIBDIR)
+	install libnpsol.a $(LIBDIR)
+
+.f.o:
+	$(F77) $(FFLAGS) -c $*.f
+
+clean:
+	rm -f *.o
+	rm -f libnpsolf.a

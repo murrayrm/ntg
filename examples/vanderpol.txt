@@ -1,0 +1,58 @@
+van der Pol example
+
+the driven second order oscillator studied by van der Pol  
+
+problem:
+                                 5
+                                /
+                               |     2     2    2
+       minimise           1/2  |   x1  + x2  + u  dt
+                               |
+                              /
+                                0
+subject to the boundary conditions
+       x1(0)=1
+       x2(0)=0
+
+      -x1(5) + x2(5) - 1 = 0
+
+where,
+
+       d
+       -- x1=x2
+       dt
+and
+
+       d                    2
+       -- x2 = -x1 + (1 - x1 ) x2 + u
+       dt
+
+
+This problem becomes the following in output space:
+
+                     5
+                    /                
+                   |   2   /d   \2    2
+    minimise  1/2  |  z  + |-- z|  + u  dt
+                   |       \dt  /    
+                  /                  
+                    0
+
+subject to the boundary conditions
+       
+        z(0)    = 1
+
+        d
+        -- z(0) = 0
+        dt
+
+                   d
+        - z(5)  +  -- z(5) - 1 = 0
+                   dt
+
+where
+            / 2   \
+            |d    |             2  /d   \
+        u = |--- z| + z - (1 - z ) |-- z|
+            |  2  |                \dt  /
+            \dt   /

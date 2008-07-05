@@ -1,0 +1,10 @@
+3 Feb 02, RMM: added READMEs, updated Makefiles
+  * Updated all README files in main and sub-directories
+  * Updated makefiles to allow tar file creation + cleanup
+  * Created CVS archive for all files
+  * Added NPSOL directory with README, Makefile (no source)
+
+1 Feb 02, RMM: updated Makefiles and directory structure
+  * moved npsol and pgs to root directory
+  * create src/, lib/, include/ structure
+  * updated makefiles to install to NTGLIB (default = ..)

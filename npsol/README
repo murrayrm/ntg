@@ -1,0 +1,25 @@
+This directory contains the files needed to make NPSOL.  The source
+code for NPSOL is not distributed with NTG, so you will need to obtain
+that separately.  Information on NPSOL is available at
+
+    http://www.sbsi-sol-optimize.com/NPSOL.htm
+
+INSTALLATION
+------------
+To install NPSOL, you must first get the original source code files
+(see URL above).  The following files are required for NTG:
+
+    blas1.f, blas2.f, chsubs.f, cmsubs.f, f06subs.f, lssolsubs.f,
+    mcsubs.f, npsolsubs.f, opsubs.f, qrsubs.f, srsubs.f
+
+Note that in the standard NPSOL distribution, these files have ".for"
+as the suffix, so you will need to rename them.  Once these files are
+installed in the npsol/ directory, perform the following steps to
+install NPSOL:
+
+  1. Edit Makefile and make sure everything is pointed where you want
+  2. Type 'make" to make the NPSOL library, libnpsol.a
+  3. If everything works, type 'make install' to install the library
+
+--
+RMM, 3 Feb 02
