@@ -21,5 +21,9 @@ install NPSOL:
   2. Type 'make" to make the NPSOL library, libnpsol.a
   3. If everything works, type 'make install' to install the library
 
+To test the installation, you can copy npmain.f and npsol.opt from the NPSOL
+distribution to this directory, run 'make test' and then run 'npmain' to
+verify proper operation (you should find an optimimum value).
+
 --
 RMM, 3 Feb 02

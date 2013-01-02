@@ -3,8 +3,8 @@
 
 LIBDIR	= ../lib
 
-F77     = f77
-FFLAGS  = -O3
+F77     = gfortran
+FFLAGS  = -m32
 
 NPSRC   = chsubs.f   srsubs.f  npsubs.f
 LSSRC   = mcsubs.f   opsubs.f  blas1.f      blas2.f   \
@@ -15,8 +15,12 @@ libnpsol.a: $(NPSRC:.f=.o) $(LSSRC:.f=.o)
 	ranlib $@
 
 install:
-	-mkdir $(LIBDIR)
+	mkdir -p $(LIBDIR)
 	install libnpsol.a $(LIBDIR)
+
+test: npmain
+npmain: npmain.o
+	$(F77) $(FFLAGS) -o $@ $< -L . -lnpsol
 
 .f.o:
 	$(F77) $(FFLAGS) -c $*.f
