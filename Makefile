@@ -12,7 +12,7 @@ NTGDIR = $(CURDIR)
 
 # Files and directories to include in distribution
 FILES = README Makefile Pending
-DIRS  = src/ doc/ examples/ pgs/
+DIRS  = src/ doc/ examples/ pgs/ npsol/
 
 # Default rule: make everything in the subdirectories
 #
@@ -21,12 +21,16 @@ DIRS  = src/ doc/ examples/ pgs/
 #
 all:
 	(cd src; make)
+	(cd npsol; make)
+	(cd pgs; make)
 
 # Install all of the required packages
 install:
 	-mkdir $(NTGDIR)/lib
 	-mkdir $(NTGDIR)/include
 	(cd src; make NTGDIR=$(NTGDIR) install)
+	(cd npsol; make NTGDIR=$(NTGDIR) install)
+	(cd pgs; make NTGDIR=$(NTGDIR) install)
 
 # Generate a tar file for distribution to others
 tar: clean

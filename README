@@ -1,7 +1,7 @@
 This directory contains the source code for the NTG software package.
 
-Version:	2.2a
-Release Date:	2 February 2002
+Version:	2.2b
+Release Date:	2 January 2013
 Contact:	murray@cds.caltech.edu
 
 INSTALLATION
@@ -17,11 +17,14 @@ available at
 
     http://www.sbsi-sol-optimize.com/NPSOL.htm
 
-PGS is the Practical Guide to Splines companion software.  It is in
-the public domain and is included in the NTG distribution in the pgs/
-subdirectory.  The latest version of the PGS software is available from
+PGS is the Practical Guide to Splines companion software.  It is in the
+public domain and is included in the NTG distribution in the pgs/
+subdirectory.  By default, the PGS soruce code will be installed from the
+PGS web site using wget.  If this doesn't work, you can grab the source code
+from one of the following web sites:
 
-    http://www.netlib.org/pppack/
+  http://pages.cs.wisc.edu/~deboor/pgs/
+  http://www.netlib.org/pppack/ (may require some renaming of files)
 
 This version of NTG has been tested under linux (RH 7.2) and should
 work in most vanilla unix environments.
@@ -34,15 +37,25 @@ To install NTG:
      and programs
 
 Example programs are available in the subdirectory 'examples/'.  These
-programs should compile correctly after you have installed the
-software.  You will need to edit the makefile to point to the properly
-directories for the include files and libraries.  You will also need
-to have the PGS and NPSOL package installed on your system.  See
-pgs/README for directions on installing the version of PGS distributed
-with NTG.
+programs should compile correctly after you have installed the software.
+You will need to edit the makefile to point to the properly directories for
+the include files and libraries.  You will also need to have the PGS and
+NPSOL package installed on your system.  See pgs/README for directions on
+installing the version of PGS distributed with NTG.
 
-(Note for Caltech CDS users: Caltech has a site license for NPSOL.
-You can get a copy of the source code from cds:~murray/src/npsol/.)
+NOTE FOR CALTECH CDS USERS: Caltech has a site license for NPSOL.  You can
+get a copy of the source code from cds:~murray/src/npsol/.
+
+NOTE FOR OS X USERS (2 Jan 2013): XCode does not come with a FORTRAN
+compiler, so you will need to install gfortran and use a compatible version
+of gcc (probably different than the system default).  I have successfully
+used gcc 4.7.2 and gfortran 4.7.2 from the fink distribution to get
+everything to compile.  The following incantation in the main directory
+generates everytihng correctly:
+
+  make CC=gcc-4 F77=gfortran
 
 --
-RMM, 3 Feb 02
+RMM, 3 Feb 2002
+RMM, 2 Jan 2013
+

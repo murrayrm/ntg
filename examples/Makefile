@@ -7,9 +7,8 @@ NTGLIBDIR = $(NTGDIR)/lib
 
 PGMS = vanderpol
 
-CC=gcc -I $(NTGINCDIR)
-CFLAGS= -O3
-LIB= -lm -lntg -lpgs -lnpsol -lg2c
+CFLAGS = -I $(NTGINCDIR) 
+LIB = -lm -lntg -lpgs -lnpsol -lgfortran
 
 vanderpol: vanderpol.o
 	$(CC) $(CFLAGS) -L $(NTGLIBDIR) -o vanderpol vanderpol.o $(LIB)

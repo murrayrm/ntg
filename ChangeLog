@@ -1,0 +1,26 @@
+2013-01-02  Richard Murray  <murray@altura.local>
+
+	* doc/Makefile: empty file to allow 'make clean' to work from main
+	directory 
+
+	* examples/Makefile, src/Makefile, pgs/Makefile, npsol/Makefile:
+	fixed small errors and removed CC and F77 assignments (use system
+	version or overwrite on the command line)
+
+	* Changes: moved contents to ChangeLog
+
+	* README: updated instructions to indicate that PGS files are
+	automatically grabbed using wget
+
+----- Old Changes file ----
+	
+3 Feb 02, RMM: added READMEs, updated Makefiles
+  * Updated all README files in main and sub-directories
+  * Updated makefiles to allow tar file creation + cleanup
+  * Created CVS archive for all files
+  * Added NPSOL directory with README, Makefile (no source)
+
+1 Feb 02, RMM: updated Makefiles and directory structure
+  * moved npsol and pgs to root directory
+  * create src/, lib/, include/ structure
+  * updated makefiles to install to NTGLIB (default = ..)

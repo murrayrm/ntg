@@ -2,30 +2,29 @@
 # RMM, 1 Feb 02
 
 # Location to install NTG
-NTGDIR=..
-NTGLIB=libntg.a
+NTGDIR = ..
+NTGLIB = libntg.a
 
-# 
-CC=cc
-CFLAGS=
-
+# Compiler flags
+CFLAGS =
 LINT=lint
-LTFLAGS=
+LTFLAGS =
 
 INCFILES = ntg.h integrator.h colloc.h constraints.h cost.h matrix.h av.h
 
 all: $(NTGLIB)
 
 install: all
-	-mkdir $(NTGDIR)/lib
+	mkdir -p $(NTGDIR)/lib
 	install $(NTGLIB) $(NTGDIR)/lib
-	-mkdir $(NTGDIR)/include
+	mkdir -p $(NTGDIR)/include
 	install $(INCFILES) $(NTGDIR)/include
 
 
 libntg.a: colloc.o constraints.o cost.o integrator.o matrix.o ntg.o 
-	ar rcv libntg.a colloc.o constraints.o cost.o integrator.o matrix.o \
+	ar rcv $@ colloc.o constraints.o cost.o integrator.o matrix.o \
 	ntg.o 
+	ranlib $@
 
 colloc.o: colloc.c colloc.h av.h matrix.h 
 constraints.o: constraints.c constraints.h matrix.h colloc.h 

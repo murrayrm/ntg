@@ -3,8 +3,6 @@
 
 PGSURL = http://pages.cs.wisc.edu/~deboor/pgs
 LIBDIR	= ../lib
-F77 = gfortran
-FFLAGS = -O3
 
 # Source code required for NTG
 SRC = banfac.f banslv.f bchfac.f bchslv.f bsplpp.f bsplvb.f bsplvb.f	\
@@ -28,6 +26,7 @@ OBJ = $(SRC:.f=.o)
 
 libpgs.a: $(OBJ)
 	ar rcv $@ $?
+	ranlib $@
 
 install: libpgs.a
 	mkdir -p $(LIBDIR)

@@ -21,7 +21,7 @@
 #ifndef _CONSTRAINTS_H_
 #define _CONSTRAINTS_H_
 
-#include <malloc.h>
+#include <sys/malloc.h>
 #include "colloc.h"
 #include "matrix.h"
 

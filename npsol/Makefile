@@ -3,9 +3,6 @@
 
 LIBDIR	= ../lib
 
-F77     = gfortran
-FFLAGS  = -m32
-
 NPSRC   = chsubs.f   srsubs.f  npsubs.f
 LSSRC   = mcsubs.f   opsubs.f  blas1.f      blas2.f   \
           f06subs.f  cmsubs.f  qrsubs.f     lssubs.f
