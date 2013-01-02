@@ -1,5 +1,7 @@
 2013-01-02  Richard Murray  <murray@altura.local>
 
+	* src/constraints.h: include <sys/malloc.h> instead of <malloc.h>
+
 	* doc/Makefile: empty file to allow 'make clean' to work from main
 	directory 
 
