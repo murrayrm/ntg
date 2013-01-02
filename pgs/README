@@ -25,6 +25,10 @@ following steps to install NPSOL:
   2. Type 'make" to make the PGS library
   3. If everything works, type 'make install' to install the library
 
+To test the installation, you can run 'make test', which will grab
+additional source code and data files from the PGS web site, compile
+everything and then run the tests.
+
 Local changes
 -------------
 
