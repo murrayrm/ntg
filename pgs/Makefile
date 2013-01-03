@@ -68,8 +68,7 @@ clean:
 	rm -f libpgs.a
 
 distclean: clean
-	rm -f $(EXAMPLES) $(DATAFILES)
-	rm .datafiles
+	rm -f *.f *.dt* .datafiles
 
 # Create a rule to try to get the PGS source code if it is not present
 %.f:;	wget $(PGSURL)/$@

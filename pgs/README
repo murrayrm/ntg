@@ -21,6 +21,7 @@ the latest version of these files if they are not available.
 Once these files are installed in the npsol/ directory, perform the
 following steps to install NPSOL:
 
+  0. Edit the files l2err.f and l2main.f and change 'ON' to 1
   1. Edit Makefile and make sure everything is pointed where you want
   2. Type 'make" to make the PGS library
   3. If everything works, type 'make install' to install the library
