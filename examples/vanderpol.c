@@ -114,7 +114,7 @@ int main(void)
    * For this problem, regularly spaced from t=0 to t=5
    *
    */
-  knots[0]=malloc((ninterv[0]+1)*sizeof(double));
+  knots[0]=calloc((ninterv[0]+1), sizeof(double));
   linspace(knots[0], 0, 5, ninterv[0]+1);
 
   /*
@@ -124,14 +124,14 @@ int main(void)
    * is specific to this particular case
    */
   ncoef=ninterv[0]*(order[0]-mult[0])+mult[0];
-  coefficients=malloc(ncoef*sizeof(double));
+  coefficients=calloc(ncoef, sizeof(double));
 
   /* Initial guess for coefficients (all 1s) */
   linspace(coefficients,1,1,ncoef);
 
   /* Allocate space for breakpoints and initialize */
   nbps=20;
-  bps=malloc(nbps*sizeof(double));
+  bps=calloc(nbps, sizeof(double));
   linspace(bps,0,5,nbps);
 
   /* 
@@ -139,9 +139,9 @@ int main(void)
    *
    * These calculations do not need to be changed.
    */
-  istate=malloc((ncoef+NLIC+NLFC+NLTC*nbps+NNLIC+NNLTC*nbps+NNLFC)*sizeof(int));
-  clambda=malloc((ncoef+NLIC+NLFC+NLTC*nbps+NNLIC+NNLTC*nbps+NNLFC)*sizeof(double));
-  R=malloc((ncoef+1)*(ncoef+1)*sizeof(double));
+  istate=calloc((ncoef+NLIC+NLFC+NLTC*nbps+NNLIC+NNLTC*nbps+NNLFC),sizeof(int));
+  clambda=calloc((ncoef+NLIC+NLFC+NLTC*nbps+NNLIC+NNLTC*nbps+NNLFC),sizeof(double));
+  R=calloc((ncoef+1)*(ncoef+1),sizeof(double));
 
   lic = DoubleMatrix(NLIC,maxderiv[0]);
   lfc = DoubleMatrix(NLFC,maxderiv[0]);
