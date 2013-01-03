@@ -116,7 +116,7 @@ int *inform,double *objective
 /*cbug*/
 /*PrintColloc("colloc",Gccolloc->colloc[0]);*/
 
-	GZ=malloc(Gccolloc->nZ*sizeof(double));
+	GZ=calloc(Gccolloc->nZ, sizeof(double));
 	Gbps=bps;
 
 	Gnlic=nlic;
@@ -221,21 +221,21 @@ int *inform,double *objective
 
 	NPldR=NPn;
 
-	NPbu=malloc((NPn+NPnclin+NPncnln)*sizeof(double));
-	NPbl=malloc((NPn+NPnclin+NPncnln)*sizeof(double));
+	NPbu=calloc((NPn+NPnclin+NPncnln),sizeof(double));
+	NPbl=calloc((NPn+NPnclin+NPncnln),sizeof(double));
 	bounds(NPbu,upperb,Gccolloc->nC,
 		nlic,nltc,nlfc,nnlic,nnltc,nnlfc,Gccolloc->nbps,DBL_MAX);
 	bounds(NPbl,lowerb,Gccolloc->nC,
 		nlic,nltc,nlfc,nnlic,nnltc,nnlfc,Gccolloc->nbps,-DBL_MAX);
 
 	NPistate=istate;
-	NPc=malloc(NPncnln*sizeof(double));
+	NPc=calloc(NPncnln,sizeof(double));
 	NPclambda=clambda;
-	NPg=malloc(NPn*sizeof(double));
+	NPg=calloc(NPn,sizeof(double));
 	NPR=R;
 
 	NPleniw=(3*NPn)+NPnclin+(2*NPncnln);
-	NPiw=malloc(NPleniw*sizeof(int));
+	NPiw=calloc(NPleniw,sizeof(int));
 	if(NPnclin==0 && NPncnln==0)
 		NPlenw=20*NPn;
 	else if(NPncnln==0)
@@ -243,7 +243,7 @@ int *inform,double *objective
 	else
 		NPlenw=(2*NPn*NPn)+(NPn*NPnclin)+(2*NPn*NPncnln)+(20*NPn)\
 		+(11*NPnclin)+(21*NPncnln);
-	NPw=malloc(NPlenw*sizeof(double));
+	NPw=calloc(NPlenw,sizeof(double));
 
 	npsoloption("nolist");
 	npsoloption("derivative level = 3");
@@ -303,10 +303,9 @@ int *nstate)
 			*y=I+In+F;
 			break;
 		case 1: /* only compute objective gradient */
-			i1=Gccolloc->nC*sizeof(double);
-			dI=malloc(i1);		memset(dI,0,i1);  /*bzero(dI,i1);*/
-			dIn=malloc(i1);	  memset(dIn,0,i1); /*bzero(dIn,i1);*/
-			dF=malloc(i1);		memset(dF,0,i1);  /*bzero(dF,i1);*/
+			dI=calloc(Gccolloc->nC,sizeof(double));
+			dIn=calloc(Gccolloc->nC,sizeof(double));
+			dF=calloc(Gccolloc->nC,sizeof(double));
 			if(Gnicf!=0)
 				InitialCost(mode,nstate,NULL,dI,Gicf,Gccolloc,GZ);
 			if(Gnucf!=0)
@@ -317,10 +316,9 @@ int *nstate)
 			free(dI);free(dIn);free(dF);
 			break;
 		case 2: /* compute both objective function and gradients */
-			i1=Gccolloc->nC*sizeof(double);
-			dI=malloc(i1);		memset(dI,0,i1);  /*bzero(dI,i1);*/
-			dIn=malloc(i1);	  memset(dIn,0,i1); /*bzero(dIn,i1);*/
-			dF=malloc(i1);		memset(dF,0,i1);  /*bzero(dF,i1);*/
+			dI=calloc(Gccolloc->nC,sizeof(double));
+			dIn=calloc(Gccolloc->nC,sizeof(double));
+			dF=calloc(Gccolloc->nC,sizeof(double));
 			if(Gnicf!=0)
 				InitialCost(mode,nstate,&I,dI,Gicf,Gccolloc,GZ);
 			if(Gnucf!=0)

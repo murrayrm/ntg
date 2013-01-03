@@ -6,7 +6,6 @@ NTGDIR = ..
 NTGLIB = libntg.a
 
 # Compiler flags
-CFLAGS =
 LINT=lint
 LTFLAGS =
 

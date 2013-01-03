@@ -39,7 +39,7 @@ FMatrix *SubFMatrix(FMatrix *m,int row,int col,int rows,int cols)
 	m1=malloc(sizeof(Matrix));
 	m1->rows=rows;
 	m1->cols=cols;
-	m1->elements=malloc(cols*sizeof(double *));
+	m1->elements=calloc(cols,sizeof(double *));
 
 	for(j=0;j<cols;j++)
 		m1->elements[j]=&(m->elements[j+col][row]);
@@ -109,10 +109,8 @@ double **DoubleFMatrix(int rows,int cols)
 	int i,j;
 	size_t s1;
 
-	s1=rows*cols*sizeof(double);
 	ppd=malloc(cols*sizeof(double *));
-	ppd[0]=malloc(s1);
-  memset(ppd[0],0,s1); /*bzero(ppd[0],s1);*/
+	ppd[0]=calloc(rows*cols,sizeof(double));
 	for(j=1,i=rows;j<cols;j++,i+=rows)
 		ppd[j]=&(ppd[0][i]);
 	return ppd;
@@ -171,7 +169,7 @@ void FMatrixMult(FMatrix *mout,FMatrix *m1,FMatrix *m2)
 {
 	int i,j,k;
 	for(i=0;i<m1->rows;i++)
-		for(j=0,mout->elements[j][i]=0;j<m2->cols;j++)
+		for(j=0;mout->elements[j][i]=0,j<m2->cols;j++)
 			for(k=0;k<m1->cols;k++)
 				mout->elements[j][i]+=m1->elements[k][i]*m2->elements[j][k];
 }
@@ -227,10 +225,8 @@ double **DoubleMatrix(int rows,int cols)
 	size_t sizeofmatrix;
 	int i,j;
 
-	sizeofmatrix=rows*cols*sizeof(double);
 	tmp=malloc(rows*sizeof(double *));			assert(tmp!=NULL);
-	tmp[0]=malloc(sizeofmatrix);					assert(tmp[0]!=NULL);
-	memset(tmp[0],0,sizeofmatrix); /*bzero(tmp[0],sizeofmatrix);*/
+	tmp[0]=calloc(rows*cols,sizeof(double));					assert(tmp[0]!=NULL);
 	for(i=1,j=cols;i<rows;i++,j+=cols)
 		tmp[i]=&(tmp[0][j]);
 	return tmp;
