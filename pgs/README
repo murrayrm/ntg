@@ -21,7 +21,6 @@ the latest version of these files if they are not available.
 Once these files are installed in the npsol/ directory, perform the
 following steps to install NPSOL:
 
-  0. Edit the files l2err.f and l2main.f and change 'ON' to 1
   1. Edit Makefile and make sure everything is pointed where you want
   2. Type 'make" to make the PGS library
   3. If everything works, type 'make install' to install the library
@@ -43,3 +42,12 @@ Local changes
     I commented out the declarations I though were mistakes and used
     the ones that made more sense
   * removed colloc.f from the library
+  * NOTE (RMM, 2 Jan 2013): not sure if this comment is still relevant
+
+2 Jan 2013, Richard Murray:
+  * For gfortran, need to edit l2err.f and l2main.f and change 'ON' to 1:
+
+        data on /'ON'/    --->     data on /1/  
+
+  * This probably breaks some options in PGS, but works OK for NTG
+

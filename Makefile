@@ -39,15 +39,19 @@ examples:
 	make -C examples
 
 # Generate a tar file for distribution to others
-tar: clean
-	tar cf ntg.tar $(FILES) $(DIRS)
+tar: distclean
+	tar zcf ntg-dist.tgz -X exclude.txt $(FILES) $(DIRS)
 
 clean:
 	(cd src; make clean)
 	(cd examples; make clean)
 	(cd pgs; make clean)
 	(cd npsol; make clean)
-	-(cd doc; make clean)
+	(cd doc; make clean)
+
+distclean: clean
+	(cd pgs; make distclean)
+	(cd npsol; make distclean)
 
 tidy:
 	rm *~

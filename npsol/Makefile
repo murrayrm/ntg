@@ -24,5 +24,10 @@ npmain: npmain.o
 	$(F77) $(FFLAGS) -c $*.f
 
 clean:
-	rm -f *.o
-	rm -f libnpsolf.a
+	rm -f npmain *.o *~ 
+	rm -f libnpsol.a
+
+distclean: clean
+	rm -f *.f npsol.* 
+
+
