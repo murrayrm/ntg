@@ -1,6 +1,8 @@
 # Makefile for NPSOL
 # RMM, 1 Feb 02 based on installed copy
 
+# Flags to allow compilation using gfortran
+
 PGSURL = http://pages.cs.wisc.edu/~deboor/pgs
 LIBDIR	= ../lib
 
@@ -60,11 +62,14 @@ $(DATAFILES):
 	  wget $(PGSURL)/$$i; \
 	done;
 	touch .datafiles
-	
 
 clean:
 	rm -f $(OBJ) *.out $(EXAMPLES:.f=) *~
 	rm -f libpgs.a
+
+distclean: clean
+	rm -f $(EXAMPLES) $(DATAFILES)
+	rm .datafiles
 
 # Create a rule to try to get the PGS source code if it is not present
 %.f:;	wget $(PGSURL)/$@
