@@ -1,5 +1,27 @@
 2013-01-02  Richard Murray  <murray@altura.local>
 
+	* README: added instructions for how to get to compile under OS X.
+
+	* src/matrix.c (SubFMatrix, DoubleFMatrix, DoubleMatrix): malloc ->
+	calloc
+
+	* src/ntg.c (ntg, NPfunobj): malloc -> calloc
+
+	* src/matrix.c (FMatrixMult): fixed initialization error
+
+	* examples/vanderpol.c (main): changed malloc to calloc throughout
+
+	* src/constraints.h, src/constraints.c: moved malloc.h out of this
+	constraints.h and into individual files
+
+	* src/matrix.c (DoubleFMatrix): replaced malloc + memset with calloc
+
+	* src/colloc.c: changed malloc to calloc throughout
+
+	* src/colloc.c (CollocMult): fixed error in initialization;
+	B->elements[j][i] was only being set for j = 0.  Didn't fix the
+	problem with examples/vanderpol getting bad values
+
 	* src/constraints.h: include <sys/malloc.h> instead of <malloc.h>
 
 	* doc/Makefile: empty file to allow 'make clean' to work from main

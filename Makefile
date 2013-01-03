@@ -14,23 +14,29 @@ NTGDIR = $(CURDIR)
 FILES = README Makefile Pending
 DIRS  = src/ doc/ examples/ pgs/ npsol/
 
+#! TODO: set compiler flags based on operating system
+
 # Default rule: make everything in the subdirectories
 #
 # Note that pgs and npsol are not distributed with NTG, so it's OK
 # if these are not in place
 #
-all:
+install: build
+	mkdir -p $(NTGDIR)/lib
+	mkdir -p $(NTGDIR)/include
+	(cd src; make NTGDIR=$(NTGDIR) install)
+	(cd npsol; make NTGDIR=$(NTGDIR) install)
+	(cd pgs; make NTGDIR=$(NTGDIR) install)
+
+# build without installing
+build:
 	(cd src; make)
 	(cd npsol; make)
 	(cd pgs; make)
 
-# Install all of the required packages
-install:
-	-mkdir $(NTGDIR)/lib
-	-mkdir $(NTGDIR)/include
-	(cd src; make NTGDIR=$(NTGDIR) install)
-	(cd npsol; make NTGDIR=$(NTGDIR) install)
-	(cd pgs; make NTGDIR=$(NTGDIR) install)
+# Compile the examples
+examples:
+	make -C examples
 
 # Generate a tar file for distribution to others
 tar: clean
@@ -40,7 +46,10 @@ clean:
 	(cd src; make clean)
 	(cd examples; make clean)
 	(cd pgs; make clean)
+	(cd npsol; make clean)
 	-(cd doc; make clean)
 
 tidy:
 	rm *~
+
+.PHONY: clean examples

@@ -53,7 +53,12 @@ used gcc 4.7.2 and gfortran 4.7.2 from the fink distribution to get
 everything to compile.  The following incantation in the main directory
 generates everytihng correctly:
 
-  make CC=gcc-4 F77=gfortran
+  make CC=gcc-4 F77=gfortran CFLAGS=-g \
+    FFLAGS="-g -fdefault-real-8 -fdefault-double-8"
+
+The flags setting the size of the real and double types are (apparently)
+required because of the use of doubles in the NTG course code for matrices
+that are treated as REAL in PGS.
 
 --
 RMM, 3 Feb 2002

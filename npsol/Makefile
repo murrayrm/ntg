@@ -19,6 +19,7 @@ test: npmain
 npmain: npmain.o
 	$(F77) $(FFLAGS) -o $@ $< -L . -lnpsol
 
+.SUFFIXES: .f .o
 .f.o:
 	$(F77) $(FFLAGS) -c $*.f
 

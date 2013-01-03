@@ -7,11 +7,11 @@ NTGLIBDIR = $(NTGDIR)/lib
 
 PGMS = vanderpol
 
-CFLAGS = -I $(NTGINCDIR) 
+CPPFLAGS += -I $(NTGINCDIR) 
 LIB = -lm -lntg -lpgs -lnpsol -lgfortran
 
-vanderpol: vanderpol.o
-	$(CC) $(CFLAGS) -L $(NTGLIBDIR) -o vanderpol vanderpol.o $(LIB)
+vanderpol: vanderpol.o $(NTGLIBDIR)/*.a
+	$(CC) $(CFLAGS) $(CPPFLAGS) -L $(NTGLIBDIR) -o $@ vanderpol.o $(LIB)
 
 clean:
 	rm -f *.o coef1 *~
