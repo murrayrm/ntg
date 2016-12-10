@@ -5,6 +5,7 @@
 /lib
 
 # /examples/
+/examples/*.o
 /examples/vanderpol
 /examples/coef1
 
