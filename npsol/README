@@ -25,5 +25,10 @@ To test the installation, you can copy npmain.f and npsol.opt from the NPSOL
 distribution to this directory, run 'make test' and then run 'npmain' to
 verify proper operation (you should find an optimimum value).
 
+If you don't have f77 installed, you can probably use gfortran, using
+the following command:
+
+  make -F77=gfortran
+
 --
 RMM, 3 Feb 02
