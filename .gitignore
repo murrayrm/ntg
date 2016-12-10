@@ -1,0 +1,24 @@
+
+# /
+/include
+/lib
+
+# /examples/
+/examples/vanderpol
+/examples/coef1
+
+# /npsol/
+/npsol/*.f
+/npsol/*.o
+/npsol/*.a
+/npsol/npsol.???
+/npsol/npmain
+
+# /pgs/
+/pgs/*.f
+/pgs/*.o
+/pgs/*.a
+/pgs/*ex*
+/pgs/reinsch*
+/pgs/.datafiles
+/pgs/.examples
