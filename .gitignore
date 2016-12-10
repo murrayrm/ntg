@@ -22,3 +22,6 @@
 /pgs/reinsch*
 /pgs/.datafiles
 /pgs/.examples
+
+# /src/
+/src/*.o

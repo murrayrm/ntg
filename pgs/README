@@ -29,6 +29,11 @@ To test the installation, you can run 'make test', which will grab
 additional source code and data files from the PGS web site, compile
 everything and then run the tests.
 
+If you don't have f77 on your machine, but instead have gfortran (more
+modern) then you can use the command
+
+  make F77=gfortran
+
 Local changes
 -------------
 
