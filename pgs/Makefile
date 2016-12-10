@@ -71,7 +71,10 @@ distclean: clean
 	rm -f *.f *.dt* .datafiles
 
 # Create a rule to try to get the PGS source code if it is not present
-%.f:;	wget $(PGSURL)/$@
+# (and apply local patches, if present)
+%.f:
+	wget $(PGSURL)/$@
+	if ( [ -e $@.diff ] ); then patch $@ $@.diff; fi
 
 .f.o:
 	$(F77) $(FFLAGS) -c $*.f

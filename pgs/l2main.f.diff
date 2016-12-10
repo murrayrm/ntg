@@ -1,0 +1,5 @@
+36c36,37
+<      *        ,ntimes,ntmax,on,prbco,prfun,prpco
+---
+>      *        ,ntimes,ntmax
+>       character*4 on,prbco,prfun,prpco

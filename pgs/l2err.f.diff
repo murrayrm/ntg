@@ -1,0 +1,5 @@
+26c26,27
+<       integer prfun,   ie,k,l,ll,lpkmax,ltkmax,ntau,ntmax,on
+---
+>       integer ie,k,l,ll,lpkmax,ltkmax,ntau,ntmax
+>       character*4 prfun,on
