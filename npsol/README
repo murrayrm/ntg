@@ -2,7 +2,7 @@ This directory contains the files needed to make NPSOL.  The source
 code for NPSOL is not distributed with NTG, so you will need to obtain
 that separately.  Information on NPSOL is available at
 
-    http://www.sbsi-sol-optimize.com/NPSOL.htm
+    http://www.sbsi-sol-optimize.com/asp/sol_product_npsol.htm
 
 INSTALLATION
 ------------
@@ -31,4 +31,5 @@ the following command:
   make -F77=gfortran
 
 --
-RMM, 3 Feb 02
+RMM, 3 Feb 2002
+RMM, 27 Jun 2022 (updated NPSOL URL)
