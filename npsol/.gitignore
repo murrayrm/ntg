@@ -1,0 +1,13 @@
+# .gitignore - files to ignore in this directory
+#
+# Ignore all of the normal source code (copy here instead)
+
+*.bat
+*.com
+*.doc
+*.f
+*.m
+*.mak
+*.nam
+*.opt
+*.run

@@ -1,0 +1,10 @@
+2013-01-02  Richard Murray  <murray@altura.local>
+
+	* Makefile: created using unix.mak as a starting point.  Allows
+	compilation using gfortran
+
+	* *.for: renamed .for files as .f files for gfortran compatibility
+
+	* README, ChangeLog: created README and ChangeLog files to document
+	changes 
+
