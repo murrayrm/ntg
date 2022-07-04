@@ -2,3 +2,9 @@ Pending file for NTG
 
 Order	Date	Item
 -----	----	----
+	Jul'22	Add documentation for kincar
+	Jul'22	Add command line interface for kincar
+	Jul'22	Add python interface for kincar (plotting)
+	Jul'22	Add sphinx documentation for NTG
+	Jul'22	Add ipopt interface for NTG
+	Jul'22	Add python interface for NTG

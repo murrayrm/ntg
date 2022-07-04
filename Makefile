@@ -15,6 +15,8 @@ FILES = README Makefile Pending
 DIRS  = src/ doc/ examples/ pgs/ npsol/
 
 #! TODO: set compiler flags based on operating system
+CFLAGS = -g
+FFLAGS = -g -fdefault-real-8 -fdefault-double-8
 
 # Default rule: make everything in the subdirectories
 #
@@ -30,9 +32,9 @@ install: build
 
 # build without installing
 build:
-	(cd src; make)
-	(cd npsol; make)
-	(cd pgs; make)
+	(cd src; make CFLAGS="$(CFLAGS)")
+	(cd npsol; make FFLAGS="$(FFLAGS)")
+	(cd pgs; make FFLAGS="$(FFLAGS)")
 
 # Compile the examples
 examples:
