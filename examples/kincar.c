@@ -297,9 +297,10 @@ int main(int argc, char **argv)
 		    NNLTC * nbps + NNLFC), sizeof(double));
   R = calloc((ncoef + 1) * (ncoef + 1), sizeof(double));
 
-  lic = DoubleMatrix(NLIC, MAXDERIV * NOUT);
-  lfc = DoubleMatrix(NLFC, MAXDERIV * NOUT);
-  double **bounds = DoubleMatrix(NOUT, MAXDERIV);
+  Matrix *lic_m = MakeMatrix(NLIC, MAXDERIV * NOUT); lic = lic_m->elements;
+  Matrix *lfc_m = MakeMatrix(NLFC, MAXDERIV * NOUT); lfc = lfc_m->elements;
+  Matrix *bounds_m = MakeMatrix(NOUT, MAXDERIV);
+  double **bounds = bounds_m->elements;
 
   /* 
    * Define the initial and final conditions
@@ -335,6 +336,15 @@ int main(int argc, char **argv)
       lowerb[NLIC + i * MAXDERIV + j] =
 	upperb[NLIC + i * MAXDERIV + j] = bounds[i][j];
     }
+  }
+
+  if (verbose) {
+    fprintf(stdout, "\nLinear initial constraints (LIC) matrix:\n");
+    PrintMatrix("stdout", lic_m);
+    fprintf(stdout, "\nLinear final constraints (LFC) matrix:\n");
+    PrintMatrix("stdout", lfc_m);
+    fprintf(stdout, "\nUpper and Lower Bounds:\n");
+    PrintVector("stdout", lowerb, NLIC + NLTC + NLFC + NNLIC + NNLTC + NNLFC);
   }
 
   /*
