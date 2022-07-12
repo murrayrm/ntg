@@ -17,6 +17,10 @@ vanderpol: vanderpol.o $(NTGLIBDIR)/*.a
 kincar: kincar.o $(NTGLIBDIR)/*.a
 	$(CC) $(CFLAGS) $(CPPFLAGS) -L $(NTGLIBDIR) -o $@ kincar.o $(LIB)
 
+%.so: %.o
+	$(CC) $< -shared -L $(NTGLIBDIR) -o $@ $(LIB)
+
+
 
 clean:
 	rm -f *.o coef1 *~

@@ -6,6 +6,7 @@
 
 # /examples/
 /examples/*.o
+/examples/*.so
 /examples/kincar
 /examples/vanderpol
 /examples/coef1
