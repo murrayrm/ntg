@@ -16,6 +16,7 @@ DIRS  = src/ doc/ examples/ pgs/ npsol/
 
 #! TODO: set compiler flags based on operating system
 CFLAGS = -g
+F77 = gfortran
 FFLAGS = -g -fdefault-real-8 -fdefault-double-8
 
 # Default rule: make everything in the subdirectories
@@ -35,6 +36,8 @@ build:
 	(cd src; make CFLAGS="$(CFLAGS)")
 	(cd npsol; make FFLAGS="$(FFLAGS)")
 	(cd pgs; make FFLAGS="$(FFLAGS)")
+	(cd python; make build)
+	(cd examples; make build)
 
 # Compile the examples
 examples:

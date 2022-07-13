@@ -11,6 +11,8 @@ CFLAGS = -g
 CPPFLAGS += -I $(NTGINCDIR) 
 LIB = -lm -lntg -lpgs -lnpsol -lgfortran
 
+build: vanderpol kincar kincar.so
+
 vanderpol: vanderpol.o $(NTGLIBDIR)/*.a
 	$(CC) $(CFLAGS) $(CPPFLAGS) -L $(NTGLIBDIR) -o $@ vanderpol.o $(LIB)
 
