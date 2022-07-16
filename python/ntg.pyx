@@ -1,19 +1,32 @@
-# distutils: include_dirs = ../include
+# ntg.pyx - Cython interface to NTG
+# RMM, 15 Jul 2022
+#
+# This module provides a Cython interface to the NTG library.  The following
+# functions and classes are provided:
+#
+#   actvar() - define active variables
+#   npsol_option() - set NPSOL options
+#   ntg() - main function to call NTG
+#   print_banner() - print NTG banner
+#
 
 import numpy as np
 import ctypes
-
+from warnings import warn
 from libc.stdlib cimport malloc, calloc, free
 cimport ntg as ntg
 
+# Define a class to define active variables
 class actvar(object):
     def __init__(self, output, deriv):
         self.output = output
         self.deriv = deriv
 
+# Print the NTG banner
 def print_banner():
     ntg.printNTGBanner()
 
+# Define NPSOL options
 def npsol_option(s):
     b = s.encode('utf-8')
     cdef char *c_string = b
@@ -25,28 +38,24 @@ def npsol_option(s):
 # For now this function looks more or less like the C version of ntg(), but
 # with Python objects as arguments (so we don't have to separately pass
 # arguments) and with keyword arguments for anything that is optional.
-# 
+#
 def ntg(
     nout,                       # number of outputs
-    bps,                        # break points
-    ninterv,                    # number of intervals
+    breakpoints,                # break points
+    nintervals,                 # number of intervals
     order,                      # order of polynomial (for each output)
-    mult,                       # multiplicity at knot points (for each output)
-    maxderiv,                   # max number of derivatives (for each output)
-    knots=None,                 # knot points
+    multiplicity,               # multiplicity at knot points (for each output)
+    maxderivs,                  # max number of derivatives (for each output)
+    knotpoints=None,            # knot points
     initialguess=None,          # initial guess for coefficients
-    lic=None, ltc=None,         # linear init, traj, final constraints
-        lfc=None,
-    nlicf=None, nltcf=None,     # nonln init, traj, final constraints
-        nlfcf=None,
-    initialconstav=None,        # (nonlinear) initial constraint active vars
-    trajectoryconstav=None,     # (nonlinear) initial constraint active vars
-    finalconstav=None,          # (nonlinear) initial constraint active vars
+    lic=None, ltc=None, lfc=None,       # linear init, traj, final constraints
+    nlicf=None, nlicf_num=None, nlicf_av=None, # NL initial constraints
+    nltcf=None, nltcf_num=None, nltcf_av=None, # NL trajectory constraints
+    nlfcf=None, nlfcf_num=None, nlfcf_av=None, # NL final constraints
     lowerb=None, upperb=None,   # upper and lower bounds for constraints
-    icf=None, tcf=None,         # initial, traj, final cost functions
-        fcf=None,
-    icf_av=None, tcf_av=None,   # init, traj, final cost active vars
-        fcf_av=None,
+    icf=None, icf_av=None,      # initial cost function, active vars
+    tcf=None, tcf_av=None,      # trajectory cost function, active vars
+    fcf=None, fcf_av=None,      # final cost function, active vars
     verbose=False               # turn on verbose messages
 ):
     # Utility functions to check dimensions and set up C arrays
@@ -56,34 +65,35 @@ def ntg(
         return array.astype(type)
 
     # Set up spline dimensions
-    cdef int [:] c_ninterv = init_c_array_1d(ninterv, nout, np.intc)
+    cdef int [:] c_ninterv = init_c_array_1d(nintervals, nout, np.intc)
     cdef int [:] c_order = init_c_array_1d(order, nout, np.intc)
-    cdef int [:] c_mult = init_c_array_1d(mult, nout, np.intc)
-    cdef int [:] c_maxderiv = init_c_array_1d(maxderiv, nout, np.intc)
+    cdef int [:] c_mult = init_c_array_1d(multiplicity, nout, np.intc)
+    cdef int [:] c_maxderiv = init_c_array_1d(maxderivs, nout, np.intc)
 
     # Breakpoints
-    bps = np.atleast_1d(bps)
-    assert bps.ndim == 1
-    cdef int nbps = bps.shape[0]
-    cdef double [:] c_bps = init_c_array_1d(bps, nbps, np.double)
+    breakpoints = np.atleast_1d(breakpoints)
+    assert breakpoints.ndim == 1
+    cdef int nbps = breakpoints.shape[0]
+    cdef double [:] c_bps = init_c_array_1d(breakpoints, nbps, np.double)
 
     # Knot points (for each output)
-    cdef double **c_knots = <double **> malloc(nout * sizeof(double *))
-    if knots is None:
+    if knotpoints is None:
         # Set up equally space knot points for reach output
-        knots = \
-            [np.linspace(0, bps[-1], ninterv[out] + 1) for out in range(nout)]
+        knotpoints = [np.linspace(0, breakpoints[-1], nintervals[out] + 1)
+                 for out in range(nout)]
+
+    cdef double **c_knots = <double **> malloc(nout * sizeof(double *))
     for out in range(nout):
-        assert len(knots[out]) == ninterv[out] + 1
-        c_knots[out] = <double *> malloc(len(knots[out]) * sizeof(double))
-        for time in range(len(knots[out])):
-            c_knots[out][time] = knots[out][time]
+        assert len(knotpoints[out]) == nintervals[out] + 1
+        c_knots[out] = <double *> malloc(len(knotpoints[out]) * sizeof(double))
+        for time in range(len(knotpoints[out])):
+            c_knots[out][time] = knotpoints[out][time]
 
     # Coefficients: initial guess + return result
     ncoef = 0
     for i in range(nout):
-        ncoef += ninterv[i] * (order[i] - mult[i]) + mult[i]
-        
+        ncoef += nintervals[i] * (order[i] - multiplicity[i]) + multiplicity[i]
+
     if initialguess is not None:
         coefs = np.atleast_1d(initialguess)
         assert coefs.ndim == 1
@@ -93,55 +103,37 @@ def ntg(
     cdef double [:] c_coefs = init_c_array_1d(coefs, ncoef, np.double)
 
     # Process linear constraints
-    cdef int nlic = 0
-    cdef double **c_lic = NULL
-    if lic is not None:
-        lic = np.atleast_2d(lic)
-        assert lic.ndim == 2
-        nlic = lic.shape[0]
-        c_lic = <double **> malloc(nlic * sizeof(double *))
-        c_lic[0] = <double *> malloc(nlic * lic.shape[1] * sizeof(double))
-        for i in range(nlic):
-            c_lic[i] = &c_lic[0][i * lic.shape[1]]
-            for j in range(lic.shape[1]):
-                c_lic[i][j] = lic[i, j]
+    nlic, c_lic = _parse_linear_constraint(lic, name='initial', verbose=verbose)
+    nltc, c_ltc = _parse_linear_constraint(
+        ltc, name='trajectory', verbose=verbose)
+    nlfc, c_lfc = _parse_linear_constraint(lfc, name='final', verbose=verbose)
 
-        if verbose:
-            print(f"  {nlic} initial constraints of size {lic.shape[1]}")
-            print("  lic = ", lic)
-            
-    cdef int nltc = 0
-    cdef double **c_ltc = NULL
-    if ltc is not None:
-        ltc = np.atleast_2d(ltc)
-        assert ltc.ndim == 2
-        nltc = ltc.shape[0]
-        c_ltc = <double **> calloc(nltc, sizeof(double *))
-        c_ltc[0] = <double *> malloc(nltc * ltc.shape[1] * sizeof(double))
-        for i in range(nltc):
-            c_ltc[i] = &c_ltc[0][i * ltc.shape[1]]
-            for j in range(ltc.shape[1]):
-                c_ltc[i][j] = ltc[i, j]
+    #
+    # Callback functions
+    #
+    # Functions defining costs and constraints should be passed as ctypes
+    # functions (so that they can be loaded dynamically).  The pointer to
+    # this callback function is passed to NTG directly, after some
+    # typcasting to keep Cython happy.
+    #
 
-        if verbose:
-            print(f"  {nltc} trajectory constraints of size {ltc.shape[1]}")
-                
-    cdef int nlfc = 0
-    cdef double **c_lfc = NULL
-    if lfc is not None:
-        lfc = np.atleast_2d(lfc)
-        assert lfc.ndim == 2
-        nlfc = lfc.shape[0]
-        c_lfc = <double **> calloc(nlfc, sizeof(double *))
-        c_lfc[0] = <double *> malloc(nlfc * lfc.shape[1] * sizeof(double))
-        for i in range(nlfc):
-            c_lfc[i] = &c_lfc[0][i * lfc.shape[1]]
-            for j in range(lfc.shape[1]):
-                c_lfc[i][j] = lfc[i, j]
+    #
+    # Constraint callbacks
+    #
 
-        if verbose:
-            print(f"  {nlfc} final constraints of size {lfc.shape[1]}")
-            print("  lfc = ", lfc)
+    # Nonlinear initial condition constraints
+    nnlic, nlic_addr, ninitialconstrav, c_initialconstrav = \
+        _parse_callback(nlicf, nlicf_av, nout, c_maxderiv, num=nlicf_num)
+    c_nlic = (<ntg_vector_cbf *> nlic_addr)[0]
+
+    # Nonlinear trajectory constraints
+    nnltc, nltc_addr, ntrajectoryconstrav, c_trajectoryconstrav = \
+        _parse_callback(nltcf, nltcf_av, nout, c_maxderiv, num=nltcf_num)
+    c_nltc = (<ntg_vector_cbf *> nltc_addr)[0]
+
+    nnlfc, nlfc_addr, nfinalconstrav, c_finalconstrav = \
+        _parse_callback(nlfcf, nlfcf_av, nout, c_maxderiv, num=nlfcf_num)
+    c_nlfc = (<ntg_vector_cbf *> nlfc_addr)[0]
 
     # Bounds on the constraints
     cdef double [:] c_lowerb = lowerb
@@ -149,45 +141,26 @@ def ntg(
     if verbose:
         print("  lower bounds = ", lowerb)
         print("  upper bounds = ", upperb)
-    
-    # Nonlinear constraint callbacks
-    cdef int nnlic = 0
-    cdef void (*nl_initial_constraint)()
-    cdef int ninitialconstrav = 0
-
-    cdef int nnltc = 0
-    cdef void (*nl_trajectory_constraint)()
-    cdef int ntrajectoryconstrav = 0
-
-    cdef int nnlfc = 0
-    cdef void (*nl_final_constraint)()
-    cdef int nfinalconstrav = 0
-
-    # Cost function callbacks
-    cdef int nicf = 0
-    cdef int ninitialcostav = 0
-
-    cdef int ntcf = 0
-    cdef int ntrajectorycostav = 0
-    if tcf is not None:
-        global ctypes_tcf
-        ctypes_tcf = tcf
-        ntcf = 1
-
-        if tcf_av is not None:
-            ntrajectorycostav = len(tcf_av)
-            c_trajectorycostav = <AV *> calloc(ntrajectorycostav, sizeof(AV))
-            for i, av in enumerate(tcf_av):
-                c_trajectorycostav[i].output = av.output
-                c_trajectorycostav[i].deriv = av.deriv
-    
-    cdef int nfcf = 0
-    cdef int nfinalcostav = 0
 
     # Check to make sure dimensions are consistent
     assert lowerb.size == nlic + nltc + nlfc + nnlic + nnltc + nnlfc
     assert upperb.size == nlic + nltc + nlfc + nnlic + nnltc + nnlfc
-    
+
+    #
+    # Cost function callbacks
+    #
+    nicf, icf_addr, ninitialcostav, c_initialcostav = \
+        _parse_callback(icf, icf_av, nout, c_maxderiv, num=1)
+    c_icf = (<ntg_scalar_cbf *> icf_addr)[0]
+
+    ntcf, tcf_addr, ntrajectorycostav, c_trajectorycostav = \
+        _parse_callback(tcf, tcf_av, nout, c_maxderiv, num=1)
+    c_tcf = (<ntg_scalar_cbf *> tcf_addr)[0]
+
+    nfcf, fcf_addr, nfinalcostav, c_finalcostav = \
+        _parse_callback(fcf, fcf_av, nout, c_maxderiv, num=1)
+    c_fcf = (<ntg_scalar_cbf *> fcf_addr)[0]
+
     # NTG internal memory
     cdef int *istate = <int *> calloc(
         ncoef + nlic + nltc * nbps + nlfc +
@@ -211,14 +184,14 @@ def ntg(
         nltc,                NULL,
         nlfc,                &c_lfc[0],
         nnlic,               NULL,
-        nnltc,               nltc_callback,
+        nnltc,               c_nltc,
         nnlfc,               NULL,
         ninitialconstrav,    NULL,
         ntrajectoryconstrav, NULL,
         nfinalconstrav,      NULL,
         &c_lowerb[0], &c_upperb[0],
         nicf,		     NULL,
-        ntcf,                tcf_callback,
+        ntcf,                c_tcf,
         nfcf,		     NULL,
         ninitialcostav,      NULL,
         ntrajectorycostav,   c_trajectorycostav,
@@ -232,41 +205,76 @@ def ntg(
     cdef int k
     for k in range(coefs.size):
         coefs[k] = c_coefs[k]
-        
+
     return coefs
 
-#
-# Callback functions
-#
-# Functions defining costs and constraints should be passed as ctypes
-# functions (so that they can be loaded dynamically).  We pass a Cython
-# callback function to NTG and then the callback function calls the ctypes
-# function that were were passed (which is stored in a module variable of
-# the form 'ctypes_<ntgfcn>'.
-#
-# Note that the callback functions don't check to make sure that the ctypes
-# callback function is not None.  We use the fact that the number of
-# functions/constraints will be passed as zero and so the callback will
-# never actually be called.
-#
+# Cython function to parse linear constraints
+cdef (int, double **) _parse_linear_constraint(
+    cmatrix, name='unknown', verbose=False):
+    cdef int nlic = 0
+    cdef double ** c_lic = NULL
+    if cmatrix is not None:
+        cmatrix = np.atleast_2d(cmatrix)
+        assert cmatrix.ndim == 2
+        nlic = cmatrix.shape[0]
+        c_lic = <double **> malloc(nlic * sizeof(double *))
+        c_lic[0] = <double *> malloc(nlic * cmatrix.shape[1] * sizeof(double))
+        for i in range(nlic):
+            c_lic[i] = &c_lic[0][i * cmatrix.shape[1]]
+            for j in range(cmatrix.shape[1]):
+                c_lic[i][j] = cmatrix[i, j]
 
-# Trajectory cost function
-ctypes_tcf = None
-cdef void tcf_callback(
-    int *mode, int *nstate, int *i, double *f, double *df, double **zp):
-    # Convert the ctypes function pointer into a Cython funciton pointer
-    cdef ntg_scalar_cbf cy_tcf = \
-        (<ntg_scalar_cbf *> <size_t> ctypes.addressof(ctypes_tcf))[0]
-    with nogil:
-        cy_tcf(mode, nstate, i, f, df, zp)
+        if verbose:
+            print(f"  {nlic} {name} constraints of size {cmatrix.shape[1]}")
+            print("  cmatrix = ", cmatrix)
 
-# Trajectory constraint function
-ctypes_nltc = None
-cdef void nltc_callback(
-    int *mode, int *nstate, int *nnltc,
-    double *nlc, double **dnlc, double **zp):
-    # Convert the ctypes function pointer into a Cython funciton pointer
-    cdef ntg_vector_cbf cy_nltc = \
-        (<ntg_vector_cbf *> <size_t> ctypes.addressof(ctypes_nltc))[0]
-    with nogil:
-        cy_nltc(mode, nstate, nnltc, nlc, dnlc, zp)
+    return nlic, c_lic
+
+# Dummy function to use as default callback (noop)
+cdef void noop() nogil:
+    pass
+
+# Cython function to parse callbacks
+cdef (int, size_t, int, AV *) _parse_callback(
+        ctypes_fcn, avlist, nout, maxderiv, num=None, name='unknown'):
+    if ctypes_fcn is None:
+        if avlist is not None:
+            raise ValueError(
+                f"active variables specified for callback {name}, "
+                f"but no callback function given")
+        # nfcn, fcn, nav, avlist
+        return 0, <size_t> noop, 0, NULL
+
+    cdef size_t c_fcn
+    if num is None:
+        # If the number of functions was not given, assume scalar and warn
+        warn(f"Number of {name} not given; assuming scalar")
+        nfcn = 1
+        c_fcn = <size_t> ctypes.addressof(ctypes_fcn)
+    else:
+        nfcn = num
+        c_fcn = <size_t> ctypes.addressof(ctypes_fcn)
+
+    # Figure out the active variables to send back
+    if avlist is not None:
+        nav = len(avlist)
+        c_av = <AV *> calloc(nav, sizeof(AV))
+        for i, av in enumerate(avlist):
+            c_av[i].output = av.output
+            c_av[i].deriv = av.deriv
+    else:
+        # Figure out how many entries we need
+        nav = 0
+        for i in range(nout):
+            nav += maxderiv[i]
+
+        # Make all variables active
+        c_av = <AV *> calloc(nav, sizeof(AV))
+        k = 0
+        for i in range(nout):
+            for j in range(maxderiv[i]):
+                c_av[k].output = i
+                c_av[k].deriv = j
+                k = k + 1
+
+    return <int> nfcn, c_fcn, <int> nav, c_av
