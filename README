@@ -57,7 +57,7 @@ everytihng correctly:
   make F77=gfortran CFLAGS=-g FFLAGS="-g -fdefault-real-8 -fdefault-double-8"
 
 The flags setting the size of the real and double types are (apparently)
-required because of the use of doubles in the NTG course code for matrices
+required because of the use of doubles in the NTG source code for matrices
 that are treated as REAL in PGS.
 
 --

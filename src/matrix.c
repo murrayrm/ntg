@@ -289,7 +289,7 @@ void PrintVector(char *filename,double *f,int nf)
 		return;
 	}
 	for(i=0;i<nf;i++)
-		fprintf(file,"%.18e ",f[i]);
+		fprintf(file,"%g ",f[i]);
 	fprintf(file,"\n");
 	if(file!=stdout && file!=stderr)
 		fclose(file);
