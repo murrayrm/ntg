@@ -7,9 +7,11 @@
 #   actvar() - define active variables
 #   npsol_option() - set NPSOL options
 #   ntg() - main function to call NTG
+#   spline_interp() - spline interpolation
 #   print_banner() - print NTG banner
 #
 
+cimport numpy as np
 import numpy as np
 import ctypes
 from warnings import warn
@@ -207,6 +209,22 @@ def ntg(
         coefs[k] = c_coefs[k]
 
     return coefs
+
+def spline_interp(x, knots, ninterv, coefs, order, mult, maxderiv):
+    cdef double [:] c_knots = knots
+    cdef double [:] c_coefs = coefs
+    cdef int ncoefs = len(coefs)
+    cdef np.ndarray[double, ndim=1, mode='c'] fz = np.empty(maxderiv)
+    ntg.SplineInterp(
+        &fz[0], x, &c_knots[0], ninterv, &c_coefs[0], len(coefs),
+        order, mult, maxderiv)
+
+    # Store results in an ndarray and free up memory
+    return fz
+
+#
+# Utility functions
+#
 
 # Cython function to parse linear constraints
 cdef (int, double **) _parse_linear_constraint(

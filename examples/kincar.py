@@ -89,8 +89,9 @@ NNLIC = 0                       # nonlinear initial constraints
 NNLTC = 0                       # nonlinear trajectory constraints
 NNLFC = 0                       # nonlinear final constraints
 
+Tf = 5
 nbps = 20                       # number of breakpoints
-bps = np.linspace(0, 5, nbps)   # breakpoint values
+bps = np.linspace(0, Tf, nbps)  # breakpoint values
 
 # Initial and final conditions
 x0, u0 = np.array([0.0, -2.0, 0.0]), np.array([8.0, 0])
@@ -127,4 +128,67 @@ coefs = ntg.ntg(
     tcf=kincar.tcf, tcf_av=trajectorycostav
 )
 
+# Print the raw coefficients
 print("coefs = ", coefs)
+
+#
+# Print (and plot) the trajectory
+#
+# Finally, we take the coefficients and use them to compute out the
+# trajectory for the system.  In principle we should be able to use the
+# SciPy BSpline implementation, but this does not seem to match the way that
+# NTG implements B-splines, so we use the NTG spline interpoloation function
+# instead.
+#
+
+# import scipy as sp
+# import scipy.interpolate
+
+# Create splines corresponding to the solution
+# bsp = []
+knots = np.empty((NOUT, NINTERV + 1))
+for j in range(NOUT):
+    knots[j] = np.linspace(0, Tf, NINTERV + 1)
+#     bsp.append(sp.interpolate.BSpline(
+#         knots, coefs.reshape(NOUT, -1)[j], ORDER))
+
+# Print the resulting values
+zflag = np.zeros((NOUT, MAXDERIV))
+timepts = np.linspace(0, Tf, 30)
+x = np.empty((3, timepts.size))
+u = np.empty((2, timepts.size))
+for i, t in enumerate(timepts):
+    for j in range(NOUT):
+#        zflag[j] = bsp[j](t)
+        zflag[j] = ntg.spline_interp(
+            t, knots[j], NINTERV, coefs.reshape(NOUT, -1)[j],
+            ORDER, MULT, MAXDERIV)
+    x[:, i], u[:, i] = kincar_flat_reverse(zflag)
+    print(t, x[:, i], u[:, i])
+
+# Function to plot lane change manuever (from CDS 112 notes)
+import matplotlib.pyplot as plt
+def plot_lanechange(t, y, u, figure=None, yf=None):
+    # Plot the xy trajectory
+    plt.subplot(3, 1, 1, label='xy')
+    plt.plot(y[0], y[1])
+    plt.xlabel("x [m]")
+    plt.ylabel("y [m]")
+    if yf:
+        plt.plot(yf[0], yf[1], 'ro')
+
+    # Plot the inputs as a function of time
+    plt.subplot(3, 1, 2, label='v')
+    plt.plot(t, u[0])
+    plt.xlabel("t [sec]")
+    plt.ylabel("velocity [m/s]")
+
+    plt.subplot(3, 1, 3, label='delta')
+    plt.plot(t, u[1])
+    plt.xlabel("t [sec]")
+    plt.ylabel("steering [rad/s]")
+
+    plt.suptitle("Lane change manuever")
+    plt.tight_layout()
+
+plot_lanechange(timepts, x, u)

@@ -1,6 +1,17 @@
 # ntg.pxd: Cython API defintion for NTG
 # RMM, 9 Jul 2022
 
+cdef extern from "../src/av.h":
+    ctypedef struct AV:
+        int output
+        int deriv
+
+cdef extern from "../src/colloc.h":
+    void SplineInterp(
+        double *f, double x, double *knots, int ninterv,
+        double *coeffs, int ncoeffs,
+        int order,int mult,int maxderiv);
+
 cdef extern from "../src/ntg.h":
     void printNTGBanner()
     void npsoloption(char *option)
@@ -37,11 +48,6 @@ cdef extern from "../src/ntg.h":
         int *istate,double *clambda,double *R,
         int *inform,double *objective
     )
-
-cdef extern from "../src/av.h":
-    ctypedef struct AV:
-        int output
-        int deriv
 
 # Define a type for call back functions
 ctypedef void (*ntg_scalar_cbf)(
