@@ -28,19 +28,19 @@ cdef extern from "../src/ntg.h":
         int nltc,double **ltc,
         int nlfc,double **lfc,
 
-        int nnlic, void (*nlicf)(int *,int *,double *,double **,double **),
+        int nnlic, void (*nlicf)(int *, int *, double *, double **, double **),
         int nnltc, void (*nltcf)(
             int *, int *, int *, double *, double **, double **),
-        int nnlfc, void (*nlfcf)(int *,int *,double *,double **,double **),
+        int nnlfc, void (*nlfcf)(int *, int *, double *, double **, double **),
         int ninitialconstrav,AV *initialconstrav,
         int ntrajectoryconstrav,AV *trajectoryconstrav,
         int nfinalconstrav,AV *finalconstrav,
 
         double *lowerb,double *upperb,
 
-        int nicf,void (*icf)(int *,int *,double *,double *,double **),
-        int nucf,void (*ucf)(int *,int *,int *,double *,double *,double **),
-        int nfcf,void (*fcf)(int *,int *,double *,double *,double **),
+        int nicf,void (*icf)(int *, int *, double *, double *, double **),
+        int nucf,void (*ucf)(int *, int *, int *, double *, double *, double **),
+        int nfcf,void (*fcf)(int *, int *, double *, double *, double **),
         int ninitialcostav,AV *initialcostav,
         int ntrajectorycostav,AV *trajectorycostav,
         int nfinalcostav,AV *finalcostav,
@@ -51,8 +51,14 @@ cdef extern from "../src/ntg.h":
 
 # Define a type for call back functions
 ctypedef void (*ntg_scalar_cbf)(
+    int *mode, int *nstate, double *f, double *df, double **zp) nogil
+
+ctypedef void (*ntg_scalar_traj_cbf)(
     int *mode, int *nstate, int *i, double *f, double *df, double **zp) nogil
 
 ctypedef void (*ntg_vector_cbf)(
+    int *mode, int *nstate, double *f, double **df, double **zp) nogil
+
+ctypedef void (*ntg_vector_traj_cbf)(
     int *mode, int *nstate, int *i, double *f, double **df, double **zp) nogil
 

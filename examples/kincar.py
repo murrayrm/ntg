@@ -1,16 +1,28 @@
 # kincar.py - Python interface to NTG for kinematic car
 # RMM, 9 Jul 2022
+#
+# This file illustrates the use of NTG to create a trajectory for a
+# kinematic car (bicycle) model via the Python interface.  The code follows
+# the basic format of the `kincar.c` file in this same directory, to show
+# how to map things over.  This means that it uses the low-level interface
+# to NTG.  See `steering.py` for an example using the high-level interface.
 
 import numpy as np
 import ctypes
 import ntg
 
-verbose = True                  # turn on when debugging
+verbose = False                 # turn on when debugging
 if verbose:
     ntg.print_banner()          # make sure things are working
 
 #
 # Vehicle dynamics
+#
+# These functions define the transformations between the states and inputs
+# of the system and the flat outputs (and their derivatives).  NTG carries
+# out all of its operations in terms of the flat outputs, so these functions
+# are mainly used to transform the inputs and outputs to NTG into
+# user-friendly states and inputs.
 #
 
 # Function to take states, inputs and return the flat flag
@@ -67,9 +79,25 @@ def kincar_flat_reverse(zflag, params={}):
 
     return x, u
 
-# C dynamics and cost function
+#
+# Cost function
+#
+# The cost function for the system is implemented as a C function in the
+# file `kincar.c`.  This function needs to be compiled into a shared object
+# (.so) file and then is imported here using the `ctypes` package.
+#
+
 kincar = ctypes.cdll.LoadLibrary('kincar.so')
 trajectorycostav = [ntg.actvar(0, 2), ntg.actvar(1, 2)]
+
+#
+# Parameter definitions
+#
+# The low-level interface to NTG requires keeping track of all of the
+# details of the B-splines, constraints, and cost functions.  This section
+# defines all of the parameters that are used to keep track of these
+# details.  These are copied over directly from `kincar.c`.
+#
 
 # NTG parameters
 NOUT = 2                        # number of flat outputs, j
@@ -89,19 +117,43 @@ NNLIC = 0                       # nonlinear initial constraints
 NNLTC = 0                       # nonlinear trajectory constraints
 NNLFC = 0                       # nonlinear final constraints
 
-Tf = 5
-nbps = 20                       # number of breakpoints
-bps = np.linspace(0, Tf, nbps)  # breakpoint values
-
+#
 # Initial and final conditions
+#
+# We how set up the trajectory generation problem by defining the initial
+# sates and inputs, final states and inputs, and duration of the trajectory.
+#
+
 x0, u0 = np.array([0.0, -2.0, 0.0]), np.array([8.0, 0])
 xf, uf = np.array([40.0, 2.0, 0.0]), np.array([8.0, 0])
+Tf = 5                          # number of second to complete manuever
+
+# Define the time points to be used in evaluating the trajectory
+nbps = 20                       # number of breakpoints
+bps = np.linspace(0, Tf, nbps)  # breakpoint values
 
 # Convert to flat flag coordinates
 zflag_0 = np.array(kincar_flat_forward(x0, u0)).reshape(-1)
 zflag_f = np.array(kincar_flat_forward(xf, uf)).reshape(-1)
 
+#
 # Set up constraints and bounds
+#
+# In the low level interface, we have to specify the upper and lower bounds
+# for all of the constraints by creating vectors of concatenated bounds, in
+# the right order.  The order of the bounds is:
+#
+#   * linear initial constraints
+#   * linear trajectory constraints
+#   * linear final constraints
+#   * nonlinear initial constraints
+#   * nonlinear trajectory constraints
+#   * nonlinear final constraints
+#
+# For this system we constrain the initial and final conditions using linear
+# constraints.
+#
+
 state_constraint_matrix = np.zeros((NLIC, MAXDERIV * NOUT))
 lowerb = np.zeros(NLIC + NLTC + NLFC + NNLIC + NNLTC + NNLFC)
 upperb = np.zeros(NLIC + NLTC + NLFC + NNLIC + NNLTC + NNLFC)
@@ -113,6 +165,14 @@ for i in range(NLIC):
 if verbose:
     print("\nState constraint matrix:\n", state_constraint_matrix)
     print("\nUpper and lower bounds:\n", lowerb)
+
+#
+# Call NTG
+#
+# We are now ready to call NTG to solve the trajectory generation problem.
+# We do some playing around with the NPSOL options to show different levels
+# of detail, depending on the verbose flag (at the top of this file).
+#
 
 # Play around with NPSOL output (similar to kincar.c)
 ntg.npsol_option("nolist")      # turn off NPSOL listing
@@ -129,7 +189,8 @@ coefs = ntg.ntg(
 )
 
 # Print the raw coefficients
-print("coefs = ", coefs)
+if verbose:
+    print("coefs = ", coefs)
 
 #
 # Print (and plot) the trajectory
@@ -191,4 +252,6 @@ def plot_lanechange(t, y, u, figure=None, yf=None):
     plt.suptitle("Lane change manuever")
     plt.tight_layout()
 
+# Plot the trajectory
 plot_lanechange(timepts, x, u)
+plt.show()

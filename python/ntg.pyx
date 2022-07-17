@@ -131,7 +131,7 @@ def ntg(
     # Nonlinear trajectory constraints
     nnltc, nltc_addr, ntrajectoryconstrav, c_trajectoryconstrav = \
         _parse_callback(nltcf, nltcf_av, nout, c_maxderiv, num=nltcf_num)
-    c_nltc = (<ntg_vector_cbf *> nltc_addr)[0]
+    c_nltc = (<ntg_vector_traj_cbf *> nltc_addr)[0]
 
     nnlfc, nlfc_addr, nfinalconstrav, c_finalconstrav = \
         _parse_callback(nlfcf, nlfcf_av, nout, c_maxderiv, num=nlfcf_num)
@@ -157,7 +157,7 @@ def ntg(
 
     ntcf, tcf_addr, ntrajectorycostav, c_trajectorycostav = \
         _parse_callback(tcf, tcf_av, nout, c_maxderiv, num=1)
-    c_tcf = (<ntg_scalar_cbf *> tcf_addr)[0]
+    c_tcf = (<ntg_scalar_traj_cbf *> tcf_addr)[0]
 
     nfcf, fcf_addr, nfinalcostav, c_finalcostav = \
         _parse_callback(fcf, fcf_av, nout, c_maxderiv, num=1)
@@ -182,22 +182,22 @@ def ntg(
     ntg.c_ntg(
         nout, &c_bps[0], nbps, &c_ninterv[0], &c_knots[0],
         &c_order[0], &c_mult[0], &c_maxderiv[0], &c_coefs[0],
-        nlic,                &c_lic[0],
-        nltc,                NULL,
-        nlfc,                &c_lfc[0],
-        nnlic,               NULL,
+        nlic,                c_lic,
+        nltc,                c_ltc,
+        nlfc,                c_lfc,
+        nnlic,               c_nlic,
         nnltc,               c_nltc,
-        nnlfc,               NULL,
-        ninitialconstrav,    NULL,
-        ntrajectoryconstrav, NULL,
-        nfinalconstrav,      NULL,
+        nnlfc,               c_nlfc,
+        ninitialconstrav,    c_initialconstrav,
+        ntrajectoryconstrav, c_trajectoryconstrav,
+        nfinalconstrav,      c_finalconstrav,
         &c_lowerb[0], &c_upperb[0],
-        nicf,		     NULL,
+        nicf,		     c_icf,
         ntcf,                c_tcf,
-        nfcf,		     NULL,
-        ninitialcostav,      NULL,
+        nfcf,		     c_fcf,
+        ninitialcostav,      c_initialcostav,
         ntrajectorycostav,   c_trajectorycostav,
-        nfinalcostav,	     NULL,
+        nfinalcostav,	     c_finalcostav,
         istate, clambda, R, &inform, &objective);
 
     if verbose:
