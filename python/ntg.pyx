@@ -138,8 +138,8 @@ def ntg(
     c_nlfc = (<ntg_vector_cbf *> nlfc_addr)[0]
 
     # Bounds on the constraints
-    cdef double [:] c_lowerb = lowerb
-    cdef double [:] c_upperb = upperb
+    cdef double [:] c_lowerb = lowerb.astype(np.double)
+    cdef double [:] c_upperb = upperb.astype(np.double)
     if verbose:
         print("  lower bounds = ", lowerb)
         print("  upper bounds = ", upperb)
