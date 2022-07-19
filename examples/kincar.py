@@ -80,15 +80,31 @@ def kincar_flat_reverse(zflag, params={}):
     return x, u
 
 #
-# Cost function
+# Initial and final conditions
 #
-# The cost function for the system is implemented as a C function in the
-# file `kincar.c`.  This function needs to be compiled into a shared object
-# (.so) file and then is imported here using the `ctypes` package.
+# We how set up the trajectory generation problem by defining the initial
+# sates and inputs, final states and inputs, and duration of the trajectory.
 #
 
+x0, u0 = np.array([0.0, -2.0, 0.0]), np.array([8.0, 0])
+xf, uf = np.array([40.0, 2.0, 0.0]), np.array([8.0, 0])
+Tf = 5                          # number of second to complete manuever
+
+#
+# Cost function and constraints
+#
+# The cost function and constraints for the system are implemented as C
+# functions in the file `kincar.c`.  This function needs to be compiled into
+# a shared object (.so) file and then is imported here using the `ctypes`
+# package.
+
 kincar = ctypes.cdll.LoadLibrary('kincar.so')
+
+c_tcf = kincar.tcf
 trajectorycostav = [ntg.actvar(0, 2), ntg.actvar(1, 2)]
+
+c_nltcf_corridor = kincar.nltcf_corridor
+trajectoryconstrav = [ntg.actvar(0, 0), ntg.actvar(1, 0)]
 
 #
 # Parameter definitions
@@ -103,7 +119,7 @@ trajectorycostav = [ntg.actvar(0, 2), ntg.actvar(1, 2)]
 NOUT = 2                        # number of flat outputs, j
 NINTERV = 2                     # number of intervals, lj
 MULT = 3                        # regularity of splits, mj
-ORDER = 5                       # degree of split polynomial, kj
+ORDER = 6                       # degree of split polynomial, kj
 MAXDERIV = 3                    # highest derivative required + 1
 NCOEF = 14                      # total # of coeffs
 
@@ -114,19 +130,8 @@ NLFC = 6                        # linear final constraints
 
 # number nonlinear constraints
 NNLIC = 0                       # nonlinear initial constraints
-NNLTC = 0                       # nonlinear trajectory constraints
+NNLTC = 2                       # nonlinear trajectory constraints
 NNLFC = 0                       # nonlinear final constraints
-
-#
-# Initial and final conditions
-#
-# We how set up the trajectory generation problem by defining the initial
-# sates and inputs, final states and inputs, and duration of the trajectory.
-#
-
-x0, u0 = np.array([0.0, -2.0, 0.0]), np.array([8.0, 0])
-xf, uf = np.array([40.0, 2.0, 0.0]), np.array([8.0, 0])
-Tf = 5                          # number of second to complete manuever
 
 # Define the time points to be used in evaluating the trajectory
 nbps = 20                       # number of breakpoints
@@ -151,7 +156,11 @@ zflag_f = np.array(kincar_flat_forward(xf, uf)).reshape(-1)
 #   * nonlinear final constraints
 #
 # For this system we constrain the initial and final conditions using linear
-# constraints.
+# constraints and constrain the trajectory using a pair of nonlinear
+# constraint that restricts the trajectory to a corridor around the line
+# connecting the initial and final point.  (The corridor constraint could be
+# implemented with a single linear constraint, but the use of two nonlinear
+# constraints demonstrates this functionality.)
 #
 
 state_constraint_matrix = np.zeros((NLIC, MAXDERIV * NOUT))
@@ -161,6 +170,13 @@ for i in range(NLIC):
     state_constraint_matrix[i, i] = 1
     lowerb[i] = upperb[i] = zflag_0[i]
     lowerb[NLIC + i] = upperb[NLIC + i] = zflag_f[i]
+
+# Add corridor constraints
+corridor_radius = 0.45
+lowerb[NLIC + NLFC + 0] = -corridor_radius;
+upperb[NLIC + NLFC + 0] = 1e10;         # no bound
+lowerb[NLIC + NLFC + 1] = -1e10;	# no bound
+upperb[NLIC + NLFC + 1] = corridor_radius;
 
 if verbose:
     print("\nState constraint matrix:\n", state_constraint_matrix)
@@ -180,13 +196,15 @@ if not verbose:
     ntg.npsol_option("print level 0")
 ntg.npsol_option("summary file = 0")
 
-coefs = ntg.ntg(
+coefs, cost, inform = ntg.ntg(
     NOUT, bps, [NINTERV, NINTERV], [ORDER, ORDER],
     [MULT, MULT], [MAXDERIV, MAXDERIV],
     lic=state_constraint_matrix, lfc=state_constraint_matrix,
+    nltcf=c_nltcf_corridor, nltcf_av=trajectoryconstrav, nltcf_num=2,
     lowerb=lowerb, upperb=upperb,
-    tcf=kincar.tcf, tcf_av=trajectorycostav
+    tcf=c_tcf, tcf_av=trajectorycostav, verbose=verbose
 )
+print(f"Optimizer status = {inform}; trajectory cost = {cost}")
 
 # Print the raw coefficients
 if verbose:
@@ -254,4 +272,11 @@ def plot_lanechange(t, y, u, figure=None, yf=None):
 
 # Plot the trajectory
 plot_lanechange(timepts, x, u)
+
+# Plot the constraints
+plt.subplot(3, 1, 1)
+plt.plot([x0[0], xf[0]], [x0[1], xf[1]], 'r--')
+plt.plot([x0[0], xf[0]], [x0[1] + corridor_radius, xf[1] + corridor_radius], 'r:')
+plt.plot([x0[0], xf[0]], [x0[1] - corridor_radius, xf[1] - corridor_radius], 'r:')
+
 plt.show()

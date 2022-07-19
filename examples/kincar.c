@@ -101,6 +101,11 @@ void kincar_flat_reverse(double **zflag, struct kincar_params *params,
  *
  */
 
+/* Lane change manuever */
+double x0[3] = {0.0, -2.0, 0.0}, u0[2] = {8.0, 0};
+double xf[3] = {40.0, 2.0, 0.0}, uf[2] = {8.0, 0};
+double Tf = 5.0;
+
 /* Trajectory cost function (unintegrated) */
 void tcf(int *mode, int *nstate, int *i, double *f, double *df, double **zp)
 {
@@ -110,11 +115,37 @@ void tcf(int *mode, int *nstate, int *i, double *f, double *df, double **zp)
   }
 
   if (*mode == 1 || *mode == 2) {
-    /* compute gradient of cost function (index = active variables) */
+    /* compute gradient of cost function (index = flat variables) */
     df[0] = 0; df[1] = 0; df[2] = 2 * zp[0][2];
     df[3] = 0; df[4] = 0; df[5] = 2 * zp[1][2];
   }
 }
+
+/* Nonlinear constraint: corridor between start and end */
+
+void nltcf_corridor(
+int *mode, int *nstate, int *i, double *f, double **df, double **zp)
+{
+  double m = (xf[1] - x0[1]) / (xf[0] - x0[0]);
+  double b = x0[1];
+
+  if (*mode == 0 || *mode == 2) {
+    /* Compute the distance from the line connecting start to end */
+    double d = m * (zp[0][0] - x0[0]) + b - zp[1][0];
+    f[0] = d; f[1] = d;
+  }
+
+  if (*mode == 1 || *mode == 2) {
+    /* Compute gradient of constraint function (2nd index = flat variables) */
+    df[0][0] = m;  df[0][1] = df[0][2] = 0;
+    df[0][3] = -1; df[0][4] = df[0][5] = 0;
+
+    df[1][0] = m;  df[1][1] = df[1][2] = 0;
+    df[1][3] = -1; df[1][4] = df[1][5] = 0;
+  }
+}
+
+/* Nonlinear constraint: two obstacles along the path */
 
 /* 
  * NTG problem setup
@@ -152,7 +183,7 @@ void tcf(int *mode, int *nstate, int *i, double *f, double *df, double **zp)
 
 /* number nonlinear constraints */
 #define NNLIC		0		/* nonlinear initial constraints */
-#define NNLTC		0		/* nonlinear trajectory constraints */
+#define NNLTC		2		/* nonlinear trajectory constraints */
 #define NNLFC		0		/* nonlinear final constraints */
 
 /* 
@@ -165,7 +196,7 @@ void tcf(int *mode, int *nstate, int *i, double *f, double *df, double **zp)
  */
 
 #define NINITIALCONSTRAV	0	/* active variables, initial */
-#define NTRAJECTORYCONSTRAV	0	/* active variables, trajectory */
+#define NTRAJECTORYCONSTRAV	2	/* active variables, trajectory */
 #define NFINALCONSTRAV		0	/* active variables, final */
 
 /* number of cost functions */
@@ -180,12 +211,15 @@ void tcf(int *mode, int *nstate, int *i, double *f, double *df, double **zp)
 
 /*
  * Now declare all of the active variables that are required for the
- * nonlinear constraints [none here] and the cost functions
+ * nonlinear constraints and the cost functions
  *
  */
 
 static AV trajectorycostav[NTRAJECTORYCOSTAV] =
   {{0, 2}, {1, 2}};			/* second deriv's of flat outputs */
+
+static AV trajectoryconstrav[NTRAJECTORYCONSTRAV] =
+  {{0, 0}, {1, 0}};			/* second deriv's of flat outputs */
 
 /*
  * Main program
@@ -263,7 +297,7 @@ int main(int argc, char **argv)
    */
   for (i = 0; i < NOUT; ++i) {
     knots[i] = calloc((ninterv[i] + 1), sizeof(double));
-    linspace(knots[i], 0, 5, ninterv[i] + 1);
+    linspace(knots[i], 0, Tf, ninterv[i] + 1);
   }
 
   /*
@@ -284,7 +318,7 @@ int main(int argc, char **argv)
 
   /* Allocate space for breakpoints and initialize */
   bps = calloc(nbps, sizeof(double));
-  linspace(bps, 0, 5, nbps);
+  linspace(bps, 0, Tf, nbps);
 
   /* 
    * NTG internal memory
@@ -315,10 +349,6 @@ int main(int argc, char **argv)
    * active variable).
    */
 
-  /* Lane change manuever */
-  double x0[3] = {0.0, -2.0, 0.0}, u0[2] = {8.0, 0};
-  double xf[3] = {40.0, 2.0, 0.0}, uf[2] = {8.0, 0};
-
   /* Initial condition constraint: zflag given */
   for (i = 0; i < NLIC; ++i) { lic[i][i] = 1.0; }
   kincar_flat_forward(x0, u0, &default_params, bounds);
@@ -348,6 +378,16 @@ int main(int argc, char **argv)
   }
 
   /*
+   * Define the trajectory constraints
+   *
+   */
+  double corridor_radius = 2;
+  lowerb[NLIC + NLFC + 0] = -corridor_radius;
+  upperb[NLIC + NLFC + 0] = 1e10;	/* no bound */
+  lowerb[NLIC + NLFC + 1] = -1e10;	/* no bound */
+  upperb[NLIC + NLFC + 1] = corridor_radius;
+
+  /*
    * Call NTG
    *
    * Now that the problem is set up, we call the main NTG function.  The
@@ -370,10 +410,10 @@ int main(int argc, char **argv)
       NLTC,                NULL,
       NLFC,                lfc,
       NNLIC,               NULL,
-      NNLTC,               NULL,
+      NNLTC,               nltcf_corridor,
       NNLFC,               NULL,
       NINITIALCONSTRAV,    NULL,
-      NTRAJECTORYCONSTRAV, NULL,
+      NTRAJECTORYCONSTRAV, trajectoryconstrav,
       NFINALCONSTRAV,      NULL,
       lowerb, upperb,
       NICF,		   NULL,
@@ -394,7 +434,7 @@ int main(int argc, char **argv)
   double x[3], u[2];
   int ntimepts = 30;
   for (i = 0; i < ntimepts; ++i) {
-    double time = 5.0 * (double) i / (ntimepts-1);
+    double time = Tf * (double) i / (ntimepts-1);
     for (j = 0; j < NOUT; ++j) {
       SplineInterp(fz[j], time, knots[j], ninterv[j],
 		   &coefficients[j * ncoef/2], ncoef/2,
