@@ -8,7 +8,7 @@
 # to NTG.  See `steering.py` for an example using the high-level interface.
 
 import numpy as np
-import ctypes
+import numba
 import ntg
 
 verbose = False                 # turn on when debugging
@@ -91,19 +91,66 @@ xf, uf = np.array([40.0, 2.0, 0.0]), np.array([8.0, 0])
 Tf = 5                          # number of second to complete manuever
 
 #
-# Cost function and constraints
+# Cost and constraint functions
 #
-# The cost function and constraints for the system are implemented as C
-# functions in the file `kincar.c`.  This function needs to be compiled into
-# a shared object (.so) file and then is imported here using the `ctypes`
-# package.
+# The cost and constraint functions for the system are implemented as
+# a C function using numba, replicating the code in `kincar.c`.
+#
 
-kincar = ctypes.cdll.LoadLibrary('kincar.so')
+# kincar = ctypes.cdll.LoadLibrary('kincar.so')
 
-c_tcf = kincar.tcf
+# Numba version
+from numba import types, carray
+@numba.cfunc(
+    types.void(
+        types.CPointer(types.intc),       # int *mode
+        types.CPointer(types.intc),       # int *nstate
+        types.CPointer(types.intc),       # int *i
+        types.CPointer(types.double),     # double *f
+        types.CPointer(types.double),     # double *df
+        types.CPointer(                   # double **zp
+            types.CPointer(types.double))))
+def tcf(mode, nstate, i, f, df, zp):
+    if mode[0] == 0 or mode[0] == 2:
+        f[0] = zp[0][2]**2 + zp[1][2]**2
+
+    if mode[0] == 1 or mode[0] == 2:
+        df[0] = 0; df[1] = 0; df[2] = 2 * zp[0][2];
+        df[3] = 0; df[4] = 0; df[5] = 2 * zp[1][2];
+
+# c_tcf = kincar.tcf
+c_tcf = tcf.ctypes
 trajectorycostav = [ntg.actvar(0, 2), ntg.actvar(1, 2)]
 
-c_nltcf_corridor = kincar.nltcf_corridor
+@numba.cfunc(
+    types.void(
+        types.CPointer(types.intc),       # int *mode
+        types.CPointer(types.intc),       # int *nstate
+        types.CPointer(types.intc),       # int *i
+        types.CPointer(types.double),     # double *f
+        types.CPointer(                   # double **df
+            types.CPointer(types.double)),
+        types.CPointer(                   # double **zp
+            types.CPointer(types.double))))
+def nltcf_corridor(mode, nstate, i, f, df, zp):
+    m = (xf[1] - x0[1]) / (xf[0] - x0[0])
+    b = x0[1];
+
+    if mode[0] == 0 or mode[0] == 2:
+        # Compute the distance from the line connecting start to end
+        d = m * (zp[0][0] - x0[0]) + b - zp[1][0]
+        f[0] = d; f[1] = d
+
+    if mode[0] == 1 or mode[0] == 2:
+        # Compute gradient of constraint function (2nd index = flat variables)
+        df[0][0] = m;  df[0][1] = df[0][2] = 0;
+        df[0][3] = -1; df[0][4] = df[0][5] = 0;
+
+        df[1][0] = m;  df[1][1] = df[1][2] = 0;
+        df[1][3] = -1; df[1][4] = df[1][5] = 0;
+
+# c_nltcf_corridor = kincar.nltcf_corridor
+c_nltcf_corridor = nltcf_corridor.ctypes
 trajectoryconstrav = [ntg.actvar(0, 0), ntg.actvar(1, 0)]
 
 #
@@ -191,9 +238,11 @@ if verbose:
 #
 
 # Play around with NPSOL output (similar to kincar.c)
-ntg.npsol_option("nolist")      # turn off NPSOL listing
+ntg.npsol_option("nolist")          # turn off NPSOL interation output
 if not verbose:
     ntg.npsol_option("print level 0")
+else:
+    ntg.npsol_option("print level 5")
 ntg.npsol_option("summary file = 0")
 
 coefs, cost, inform = ntg.ntg(
