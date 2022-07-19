@@ -138,15 +138,17 @@ def ntg(
     c_nlfc = (<ntg_vector_cbf *> nlfc_addr)[0]
 
     # Bounds on the constraints
-    cdef double [:] c_lowerb = lowerb.astype(np.double)
-    cdef double [:] c_upperb = upperb.astype(np.double)
+    nil = np.array([0.])        # Use as "empty" constraint matrix
+    cdef double [:] c_lowerb = nil if lowerb is None else lowerb.astype(np.double)
+    cdef double [:] c_upperb = nil if lowerb is None else upperb.astype(np.double)
     if verbose:
         print("  lower bounds = ", lowerb)
         print("  upper bounds = ", upperb)
 
     # Check to make sure dimensions are consistent
-    assert lowerb.size == nlic + nltc + nlfc + nnlic + nnltc + nnlfc
-    assert upperb.size == nlic + nltc + nlfc + nnlic + nnltc + nnlfc
+    if nlic + nltc + nlfc + nnlic + nnltc + nnlfc > 0:
+        assert lowerb.size == nlic + nltc + nlfc + nnlic + nnltc + nnlfc
+        assert upperb.size == nlic + nltc + nlfc + nnlic + nnltc + nnlfc
 
     #
     # Cost function callbacks
@@ -208,7 +210,7 @@ def ntg(
     for k in range(coefs.size):
         coefs[k] = c_coefs[k]
 
-    return coefs
+    return coefs, objective, inform
 
 def spline_interp(x, knots, ninterv, coefs, order, mult, maxderiv):
     cdef double [:] c_knots = knots

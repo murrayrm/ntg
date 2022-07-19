@@ -6,4 +6,4 @@ OBJFILES = lowlevel.so
 default: $(OBJFILES)
 
 %.so: %.o
-	$(CC) $< -shared -o $@
+	$(CC) $< -shared -o $@ -lm
