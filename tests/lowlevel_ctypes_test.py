@@ -1,4 +1,4 @@
-# lowlevel_test.py - test low-level NTG interface
+# lowlevel_ctypes_test.py - test low-level NTG interface using ctypes
 # RMM, 16 Jul 2022
 
 import ctypes
