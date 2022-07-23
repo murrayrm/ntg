@@ -9,15 +9,7 @@ import pytest
 
 # Numba version
 from numba import types, carray
-@numba.cfunc(
-    types.void(
-        types.CPointer(types.intc),       # int *mode
-        types.CPointer(types.intc),       # int *nstate
-        types.CPointer(types.intc),       # int *i
-        types.CPointer(types.double),     # double *f
-        types.CPointer(types.double),     # double *df
-        types.CPointer(                   # double **zp
-            types.CPointer(types.double))))
+@numba.cfunc(ntg.numba_trajectory_cost_signature)
 def tcf_2d_curvature(mode, nstate, i, f, df, zp):
     if mode[0] == 0 or mode[0] == 2:
         f[0] = zp[0][2]**2 + zp[1][2]**2
@@ -93,14 +85,7 @@ ifc_weight = 100                # initial/final cost weight
 z0 = np.array([[0., 0., 0.], [-2., 0., 0.]])
 zf = np.array([[40., 0., 0.], [2., 0., 0.]])
 
-@numba.cfunc(
-    types.void(
-        types.CPointer(types.intc),       # int *mode
-        types.CPointer(types.intc),       # int *nstate
-        types.CPointer(types.double),     # double *f
-        types.CPointer(types.double),     # double *df
-        types.CPointer(                   # double **zp
-            types.CPointer(types.double))))
+@numba.cfunc(ntg.numba_endpoint_cost_signature)
 def nl_2d_initial_cost(mode, nstate, f, df, zp):
     if mode[0] == 0 or mode[0] == 2:
         # compute cost function: square distance from initial value
@@ -116,14 +101,7 @@ def nl_2d_initial_cost(mode, nstate, f, df, zp):
                 df[i * FLAGLEN + j] = 2 * ifc_weight * \
                          (zp[i][j] - z0[i][j]);
 
-@numba.cfunc(
-    types.void(
-        types.CPointer(types.intc),       # int *mode
-        types.CPointer(types.intc),       # int *nstate
-        types.CPointer(types.double),     # double *f
-        types.CPointer(types.double),     # double *df
-        types.CPointer(                   # double **zp
-            types.CPointer(types.double))))
+@numba.cfunc(ntg.numba_endpoint_cost_signature)
 def nl_2d_final_cost(mode, nstate, f, df, zp):
     if mode[0] == 0 or mode[0] == 2:
         # compute cost function: square distance from initial value
@@ -358,16 +336,7 @@ def test_2d_curvature_corridor_single(nltcf_avs):
     # Now impose a "corridor" constraint that forces the trajectory to cost
     # a bit more.
     #
-    @numba.cfunc(
-        types.void(
-            types.CPointer(types.intc),       # int *mode
-            types.CPointer(types.intc),       # int *nstate
-            types.CPointer(types.intc),       # int *i
-            types.CPointer(types.double),     # double *f
-            types.CPointer(                   # double **df
-                types.CPointer(types.double)),
-            types.CPointer(                   # double **zp
-                types.CPointer(types.double))))
+    @numba.cfunc(ntg.numba_trajectory_constraint_signature)
     def nltcf_corridor(mode, nstate, i, f, df, zp):
         m = (zf[3] - z0[3]) / (zf[0] - z0[0])
         b = z0[3];
@@ -493,16 +462,7 @@ def test_2d_curvature_corridor_multiple():
     # Now impose a "corridor" constraint that forces the trajectory to cost
     # a bit more.
     #
-    @numba.cfunc(
-        types.void(
-            types.CPointer(types.intc),       # int *mode
-            types.CPointer(types.intc),       # int *nstate
-            types.CPointer(types.intc),       # int *i
-            types.CPointer(types.double),     # double *f
-            types.CPointer(                   # double **df
-                types.CPointer(types.double)),
-            types.CPointer(                   # double **zp
-                types.CPointer(types.double))))
+    @numba.cfunc(ntg.numba_trajectory_constraint_signature)
     def nltcf_corridor(mode, nstate, i, f, df, zp):
         m = (zf[3] - z0[3]) / (zf[0] - z0[0])
         b = z0[3];

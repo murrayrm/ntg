@@ -13,6 +13,8 @@
 
 cimport numpy as np
 import numpy as np
+import scipy as sp
+import scipy.optimize
 import ctypes
 from warnings import warn
 from libc.stdlib cimport malloc, calloc, free
@@ -85,12 +87,6 @@ def ntg(
     fcf_av = process_alt_kwargs(
         kwargs, fcf_av,
         ['final_cost_actvars', 'terminal_cost_actvars'], 'fcf_av')
-
-    # High-level keywords (integration with low-level keywords handled below)
-    initial_constraints = kwargs.pop('initial_constraints', None)
-    initial_condition = kwargs.pop('X0', kwargs.pop('initial_condition', None))
-    trajectory_constraints = kwargs.pop('trajectory_constraints', None)
-    final_constraints = kwargs.pop('final_constraints', None)
 
     # Make sure there were no additional keyword arguments
     if kwargs:
@@ -242,6 +238,152 @@ def ntg(
         minimum=1, default=flaglen)
 
     #
+    # Process constraints
+    #
+    # There are currently two ways to specify constraints: directly, using
+    # lic, ltc, and lfc for linear constraints and nlicf, nltcf, and nlfcf
+    # for nonlinear constraints (with lowerb and upperb set appropriately)
+    # or via the initial_constraints, trajectory_constraints, and
+    # final_constraints keywords, which use scipy.optimal's
+    # LinearConstraints and NonlinearConstraints classes.
+    #
+    # These two methods are currently incompatible.
+    #
+    # This section of the code parses the initial_constraints,
+    # trajectory_constraints, and final_constraints keywords, which is the
+    # preferred (and easier) way to specify constraints.
+    #
+
+    # Make sure we aren't mixing up constraint types
+    if lowerb is not None or upperb is not None:
+        for ctype, name in zip(
+                [initial_constraints, trajectory_constraints, final_constraints],
+                ['initial', 'trajectory', 'final']):
+            if ctype is not None:
+                raise TypeError(
+                    f"invalid mixture of {name} constraint types detected")
+
+    # Figure out the dimension of the flat flag
+    zflag_size = sum([flaglen[i] for i in range(nout)])
+
+    # Initialize linear constraint matrices and bounds (if needed)
+    # (if low-level interface is used; these just convert to ndarrays)
+    lic = np.empty((0, zflag_size)) if lic is None else np.atleast_2d(lic)
+    ltc = np.empty((0, zflag_size)) if ltc is None else np.atleast_2d(ltc)
+    lfc = np.empty((0, zflag_size)) if lfc is None else np.atleast_2d(lfc)
+    lowerb = np.empty(0) if lowerb is None else np.atleast_1d(lowerb)
+    upperb = np.empty(0) if upperb is None else np.atleast_1d(upperb)
+
+    # Utility function to process linear constraints
+    def process_linear_constraints(
+            constraint_list, Amat, lb, ub, name='unknown'):
+        if constraint_list is None:
+            # Nothing to do
+            return Amat, lb, ub
+        elif Amat.size > 0:
+            # Can't use low-level and high-level interfaces at the same time
+            raise TypeError(
+                f"invalid mixture of {name} constraint types detected")
+
+        # Turn constraint list into a list, if it isn't already
+        if not isinstance(constraint_list, list):
+            constraint_list = [constraint_list]
+
+        # Go through each constraint & create low-level linear constraint
+        for constraint in constraint_list:
+            if isinstance(constraint, sp.optimize.LinearConstraint):
+                # Set up a linear constraint
+                Amat = np.vstack([Amat, constraint.A])
+                lb = np.hstack([lb, constraint.lb])
+                ub = np.hstack([ub, constraint.ub])
+
+            elif isinstance(constraint, sp.optimize.NonlinearConstraint):
+                # Nonlinear constraints are handled later
+                pass
+
+            else:
+                raise ValueError(f"unregonized {name} constraint")
+        return Amat, lb, ub
+
+    # Process linear constraints (does nothing if low-level interface is used)
+    lic, lowerb, upperb = process_linear_constraints(
+        initial_constraints, lic, lowerb, upperb, name='initial')
+    ltc, lowerb, upperb = process_linear_constraints(
+        trajectory_constraints, ltc, lowerb, upperb, name='trajectory')
+    lfc, lowerb, upperb = process_linear_constraints(
+        final_constraints, lfc, lowerb, upperb, name='final')
+
+    # Utility function to process nonlinear constraints
+    def process_nonlinear_constraints(
+            constraint_list, func, nconstraints, lb, ub, name='unknown'):
+        if constraint_list is None:
+            # Nothing to do
+            return func, nconstraints, lb, ub
+        elif func is not None or nconstraints is not None:
+            # Can't use low-level and high-level interfaces at the same time
+            raise TypeError(
+                f"invalid mixture of {name} constraint types detected")
+
+        # Turn constraint list into a list, if it isn't already
+        if not isinstance(constraint_list, list):
+            constraint_list = [constraint_list]
+
+        # Go through each constraint & create low-level linear constraint
+        funclist, nconstraints = [], 0
+        for constraint in constraint_list:
+            if isinstance(constraint, sp.optimize.NonlinearConstraint):
+                # Set up a nonlinear constraint
+                funclist.append(constraint.fun)
+
+                # Convert upper and lower bounds to ndarray's
+                constraint_lb = np.atleast_1d(constraint.lb)
+                constraint_ub = np.atleast_1d(constraint.ub)
+                if constraint_lb.ndim > 1 or constraint_ub.ndim > 1:
+                    raise ValueError("upper/lower bounds must be 1D array-like")
+
+                # Update the upper and lower bounds + constraint count
+                lb = np.hstack([lb, constraint_lb])
+                ub = np.hstack([ub, constraint_ub])
+                nconstraints += constraint_lb.size
+
+            elif isinstance(constraint, sp.optimize.LinearConstraint):
+                # Linear constraints have already been handled
+                pass
+
+            else:
+                raise ValueError(f"unregonized {name} constraint")
+
+        # TODO: add support for multiple nonlinear constraints
+        if len(funclist) > 1:
+            raise ValueError(
+                f"multiple nonlinear {name} constraints not yet supported")
+        elif len(funclist) == 1:
+            # Return the single nonlinear constraint function
+            func = funclist[0]
+        else:
+            # No nonlinear constraints found
+            func = None
+
+        return func, nconstraints, lb, ub
+
+    # Process nonlinear constraints (does nothing if low-level interface is used)
+    nlicf, nlicf_num, lowerb, upperb = process_nonlinear_constraints(
+        initial_constraints, nlicf, nlicf_num, lowerb, upperb, name='initial')
+    nltcf, nltcf_num, lowerb, upperb = process_nonlinear_constraints(
+        trajectory_constraints, nltcf, nltcf_num, lowerb, upperb,
+        name='trajectory')
+    nlfcf, nlfcf_num, lowerb, upperb = process_nonlinear_constraints(
+        final_constraints, nlfcf, nlfcf_num, lowerb, upperb, name='final')
+
+    # Print the shapes of things if we need to know what is happening
+    if verbose:
+        print(f"lic.shape = {lic.shape}")
+        print(f"ltc.shape = {ltc.shape}")
+        print(f"lfc.shape = {lfc.shape}")
+        print(f"lowerb.shape = {lowerb.shape}")
+        print(f"upperb.shape = {upperb.shape}")
+
+    #
     # Create the C data structures needed for ntg()
     #
 
@@ -268,11 +410,12 @@ def ntg(
         for time in range(len(knotpoints[out])):
             c_knots[out][time] = knotpoints[out][time]
 
-    # Coefficients: initial guess + return result
+    # Figure out the number of coefficients
     ncoef = 0
     for i in range(nout):
         ncoef += nintervals[i] * (order[i] - multiplicity[i]) + multiplicity[i]
 
+    # Coefficients: initial guess + return result
     if initial_guess is not None:
         coefs = np.atleast_1d(initial_guess)
         assert coefs.ndim == 1
@@ -282,10 +425,10 @@ def ntg(
     cdef double [:] c_coefs = init_c_array_1d(coefs, ncoef, np.double)
 
     # Process linear constraints
-    nlic, c_lic = _parse_linear_constraint(lic, name='initial', verbose=verbose)
-    nltc, c_ltc = _parse_linear_constraint(
+    nlic, c_lic = _convert_linear_constraint(lic, name='initial', verbose=verbose)
+    nltc, c_ltc = _convert_linear_constraint(
         ltc, name='trajectory', verbose=verbose)
-    nlfc, c_lfc = _parse_linear_constraint(lfc, name='final', verbose=verbose)
+    nlfc, c_lfc = _convert_linear_constraint(lfc, name='final', verbose=verbose)
 
     #
     # Callback functions
@@ -316,8 +459,10 @@ def ntg(
 
     # Bounds on the constraints
     nil = np.array([0.])        # Use as "empty" constraint matrix
-    cdef double [:] c_lowerb = nil if lowerb is None else lowerb.astype(np.double)
-    cdef double [:] c_upperb = nil if lowerb is None else upperb.astype(np.double)
+    cdef double [:] c_lowerb = nil if lowerb.size == 0 else \
+        lowerb.astype(np.double)
+    cdef double [:] c_upperb = nil if upperb.size == 0 else \
+        upperb.astype(np.double)
     if verbose:
         print("  lower bounds = ", lowerb)
         print("  upper bounds = ", upperb)
@@ -402,14 +547,15 @@ def spline_interp(x, knots, ninterv, coefs, order, mult, flaglen):
     return fz
 
 #
-# Utility functions
+# Cython utility functions
 #
 
 # Cython function to parse linear constraints
-cdef (int, double **) _parse_linear_constraint(
+cdef (int, double **) _convert_linear_constraint(
     cmatrix, name='unknown', verbose=False):
     cdef int nlic = 0
-    cdef double ** c_lic = NULL
+    cdef double **c_lic = NULL
+
     if cmatrix is not None:
         cmatrix = np.atleast_2d(cmatrix)
         assert cmatrix.ndim == 2
@@ -475,3 +621,41 @@ cdef (int, size_t, int, AV *) _parse_callback(
                 k = k + 1
 
     return <int> nfcn, c_fcn, <int> nav, c_av
+
+# Cost function and constraint signatures
+from numba import types
+numba_trajectory_cost_signature = types.void(
+    types.CPointer(types.intc),       # int *mode
+    types.CPointer(types.intc),       # int *nstate
+    types.CPointer(types.intc),       # int *i
+    types.CPointer(types.double),     # double *f
+    types.CPointer(types.double),     # double *df
+    types.CPointer(                   # double **zp
+        types.CPointer(types.double)))
+
+numba_endpoint_cost_signature = types.void(
+    types.CPointer(types.intc),       # int *mode
+    types.CPointer(types.intc),       # int *nstate
+    types.CPointer(types.double),     # double *f
+    types.CPointer(types.double),     # double *df
+    types.CPointer(                   # double **zp
+        types.CPointer(types.double)))
+
+numba_trajectory_constraint_signature = types.void(
+    types.CPointer(types.intc),       # int *mode
+    types.CPointer(types.intc),       # int *nstate
+    types.CPointer(types.intc),       # int *i
+    types.CPointer(types.double),     # double *f
+    types.CPointer(                   # double **df
+        types.CPointer(types.double)),
+    types.CPointer(                   # double **zp
+        types.CPointer(types.double)))
+
+numba_endpoint_constraint_signature = types.void(
+    types.CPointer(types.intc),       # int *mode
+    types.CPointer(types.intc),       # int *nstate
+    types.CPointer(types.double),     # double *f
+    types.CPointer(                   # double **df
+        types.CPointer(types.double)),
+    types.CPointer(                   # double **zp
+        types.CPointer(types.double)))
