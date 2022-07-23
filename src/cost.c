@@ -84,7 +84,7 @@ ConcatColloc *ccolloc, double *Z)
 	  dIdC->elements[ccolloc->iC[i]+k][j] = 0;
 	for(; k < offset+ccolloc->colloc[i]->order; k++)
 	  for(l = 0, dIdC->elements[ccolloc->iC[i]+k][j] = 0;
-	      l < ccolloc->colloc[i]->maxderiv; l++)
+	      l < ccolloc->colloc[i]->flaglen; l++)
 	    dIdC->elements[ccolloc->iC[i]+k][j] +=
 	      dIdz->elements[ccolloc->iz[i]+l][j]*
 	      ccolloc->colloc[i]->block[j].matrix->elements[k-offset][l];
@@ -121,7 +121,7 @@ ConcatColloc *ccolloc, double *Z)
 	  dIdC->elements[ccolloc->iC[i]+k][j] = 0;
 	for(; k < offset+ccolloc->colloc[i]->order; k++)
 	  for(l = 0, dIdC->elements[ccolloc->iC[i]+k][j] = 0;
-	      l < ccolloc->colloc[i]->maxderiv; l++)
+	      l < ccolloc->colloc[i]->flaglen; l++)
 	    dIdC->elements[ccolloc->iC[i]+k][j] +=
 	      dIdz->elements[ccolloc->iz[i]+l][j]*
 	      ccolloc->colloc[i]->block[j].matrix->elements[k-offset][l];

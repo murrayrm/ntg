@@ -167,7 +167,7 @@ NOUT = 2                        # number of flat outputs, j
 NINTERV = 2                     # number of intervals, lj
 MULT = 3                        # regularity of splits, mj
 ORDER = 6                       # degree of split polynomial, kj
-MAXDERIV = 3                    # highest derivative required + 1
+FLAGLEN = 3                     # highest derivative required + 1
 NCOEF = 14                      # total # of coeffs
 
 # number linear constraints
@@ -210,7 +210,7 @@ zflag_f = np.array(kincar_flat_forward(xf, uf)).reshape(-1)
 # constraints demonstrates this functionality.)
 #
 
-state_constraint_matrix = np.zeros((NLIC, MAXDERIV * NOUT))
+state_constraint_matrix = np.zeros((NLIC, FLAGLEN * NOUT))
 lowerb = np.zeros(NLIC + NLTC + NLFC + NNLIC + NNLTC + NNLFC)
 upperb = np.zeros(NLIC + NLTC + NLFC + NNLIC + NNLTC + NNLFC)
 for i in range(NLIC):
@@ -247,7 +247,7 @@ ntg.npsol_option("summary file = 0")
 
 coefs, cost, inform = ntg.ntg(
     NOUT, bps, [NINTERV, NINTERV], [ORDER, ORDER],
-    [MULT, MULT], [MAXDERIV, MAXDERIV],
+    [MULT, MULT], [FLAGLEN, FLAGLEN],
     lic=state_constraint_matrix, lfc=state_constraint_matrix,
     nltcf=c_nltcf_corridor, nltcf_av=trajectoryconstrav, nltcf_num=2,
     lowerb=lowerb, upperb=upperb,
@@ -281,7 +281,7 @@ for j in range(NOUT):
 #         knots, coefs.reshape(NOUT, -1)[j], ORDER))
 
 # Print the resulting values
-zflag = np.zeros((NOUT, MAXDERIV))
+zflag = np.zeros((NOUT, FLAGLEN))
 timepts = np.linspace(0, Tf, 30)
 x = np.empty((3, timepts.size))
 u = np.empty((2, timepts.size))
@@ -290,7 +290,7 @@ for i, t in enumerate(timepts):
 #        zflag[j] = bsp[j](t)
         zflag[j] = ntg.spline_interp(
             t, knots[j], NINTERV, coefs.reshape(NOUT, -1)[j],
-            ORDER, MULT, MAXDERIV)
+            ORDER, MULT, FLAGLEN)
     x[:, i], u[:, i] = kincar_flat_reverse(zflag)
     print(t, x[:, i], u[:, i])
 

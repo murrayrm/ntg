@@ -37,7 +37,7 @@ def tcf_2d_curvature(mode, nstate, i, f, df, zp):
 def test_2d_curvature_p2p(zf_0, zf_f, Tf, ninterv, mult, order):
     # System setup
     nout = 2                    # 2 flat outputs
-    maxderiv = [3, 3]           # 3 derivatives in each output
+    flaglen = [3, 3]            # 2 derivatives in each output
 
     # Breakpoints: linearly spaced
     bps = np.linspace(0, Tf, 30)
@@ -56,7 +56,7 @@ def test_2d_curvature_p2p(zf_0, zf_f, Tf, ninterv, mult, order):
 
     # Compute the optimal trajectory
     coefs, cost, inform = ntg.ntg(
-        nout, bps, ninterv, order, mult, maxderiv,
+        nout, bps, ninterv, order, mult, flaglen,
         lic=state_constraint_matrix, lfc=state_constraint_matrix,
         lowerb=bounds, upperb=bounds,
         tcf=c_tcf, tcf_av=tcf_av)
@@ -73,12 +73,12 @@ def test_2d_curvature_p2p(zf_0, zf_f, Tf, ninterv, mult, order):
     knots = [np.linspace(0, Tf, ninterv[i] + 1) for i in range(nout)]
 
     z0_check = [ntg.spline_interp(0., knots[i], ninterv[i],
-                                 coef_list[i], order[i], mult[i], maxderiv[i])
+                                 coef_list[i], order[i], mult[i], flaglen[i])
                 for i in range(nout)]
     np.testing.assert_almost_equal(np.hstack(z0_check), zf_0)
 
     zf_check = [ntg.spline_interp(Tf, knots[i], ninterv[i],
-                                 coef_list[i], order[i], mult[i], maxderiv[i])
+                                 coef_list[i], order[i], mult[i], flaglen[i])
                 for i in range(nout)]
     np.testing.assert_almost_equal(np.hstack(zf_check), zf_f)
 
@@ -87,7 +87,7 @@ def test_2d_curvature_p2p(zf_0, zf_f, Tf, ninterv, mult, order):
 #
 
 NOUT = 2                        # number of outputs
-MAXDERIV = 3                    # maximum number of derivatives
+FLAGLEN = 3                    # maximum number of derivatives
 ifc_weight = 100                # initial/final cost weight
 
 z0 = np.array([[0., 0., 0.], [-2., 0., 0.]])
@@ -106,14 +106,14 @@ def nl_2d_initial_cost(mode, nstate, f, df, zp):
         # compute cost function: square distance from initial value
         f[0] = 0
         for i in range(NOUT):
-            for j in range(MAXDERIV):
+            for j in range(FLAGLEN):
                 f[0] += (zp[i][j] - z0[i][j])**2 * ifc_weight
 
     if mode[0] == 1 or mode[0] == 2:
         # compute gradient of cost function (index = active variables)
         for i in range(NOUT):
-            for j in range(MAXDERIV):
-                df[i * MAXDERIV + j] = 2 * ifc_weight * \
+            for j in range(FLAGLEN):
+                df[i * FLAGLEN + j] = 2 * ifc_weight * \
                          (zp[i][j] - z0[i][j]);
 
 @numba.cfunc(
@@ -129,14 +129,14 @@ def nl_2d_final_cost(mode, nstate, f, df, zp):
         # compute cost function: square distance from initial value
         f[0] = 0
         for i in range(NOUT):
-            for j in range(MAXDERIV):
+            for j in range(FLAGLEN):
                 f[0] += (zp[i][j] - zf[i][j])**2 * ifc_weight
 
     if mode[0] == 1 or mode[0] == 2:
         # compute gradient of cost function (index = active variables)
         for i in range(NOUT):
-            for j in range(MAXDERIV):
-                df[i * MAXDERIV + j] = 2 * ifc_weight * \
+            for j in range(FLAGLEN):
+                df[i * FLAGLEN + j] = 2 * ifc_weight * \
                          (zp[i][j] - zf[i][j]);
 
 def test_2d_curvature_ifc_ltc():
@@ -147,7 +147,7 @@ def test_2d_curvature_ifc_ltc():
 
     # System definition
     nout = 2                    # 2 flat outputs
-    maxderiv = [3, 3]           # 3 derivatives in each output
+    flaglen = [3, 3]           # 3 derivatives in each output
 
     # Spline definition
     ninterv = [2, 2]
@@ -178,7 +178,7 @@ def test_2d_curvature_ifc_ltc():
 
     # Compute the optimal trajectory
     p2p_coefs, p2p_cost, p2p_inform = ntg.ntg(
-        nout, bps, ninterv, order, mult, maxderiv,
+        nout, bps, ninterv, order, mult, flaglen,
         lic=state_constraint_matrix, lfc=state_constraint_matrix,
         lowerb=bounds, upperb=bounds,
         tcf=c_tcf, tcf_av=tcf_av)
@@ -189,13 +189,13 @@ def test_2d_curvature_ifc_ltc():
     #
 
     c_icf = nl_2d_initial_cost.ctypes
-    icf_av = [ntg.actvar(i, j) for i in range(nout) for j in range(maxderiv[i])]
+    icf_av = [ntg.actvar(i, j) for i in range(nout) for j in range(flaglen[i])]
     c_fcf = nl_2d_final_cost.ctypes
-    fcf_av = [ntg.actvar(i, j) for i in range(nout) for j in range(maxderiv[i])]
+    fcf_av = [ntg.actvar(i, j) for i in range(nout) for j in range(flaglen[i])]
 
     # Re-solve the problem with initial and final cost
     ifc_coefs, ifc_cost, ifc_inform = ntg.ntg(
-        nout, bps, ninterv, order, mult, maxderiv,
+        nout, bps, ninterv, order, mult, flaglen,
         icf=c_icf, icf_av=icf_av,
         fcf=c_fcf, fcf_av=fcf_av,
         tcf=c_tcf, tcf_av=tcf_av)
@@ -221,15 +221,15 @@ def test_2d_curvature_ifc_ltc():
     # Figure out starting and ending points
     knots = [np.linspace(0, Tf, ninterv[i] + 1) for i in range(nout)]
     ifc_z0 = [ntg.spline_interp(0., knots[i], ninterv[i], ifc_coef_list[i],
-                                order[i], mult[i], maxderiv[i])
+                                order[i], mult[i], flaglen[i])
                 for i in range(nout)]
     ifc_zf = [ntg.spline_interp(Tf, knots[i], ninterv[i], ifc_coef_list[i],
-                                order[i], mult[i], maxderiv[i])
+                                order[i], mult[i], flaglen[i])
                 for i in range(nout)]
 
     k = 0
     for i in range(nout):
-        for j in range(maxderiv[i]):
+        for j in range(flaglen[i]):
             assert abs(ifc_z0[i][j] - z0[k]) <= eps
             k += 1
 
@@ -242,7 +242,7 @@ def test_2d_curvature_ifc_ltc():
     for i in range(nout):
         ztraj.append(np.array([
             ntg.spline_interp(t, knots[i], ninterv[i], ifc_coef_list[i],
-                              order[i], mult[i], maxderiv[i])
+                              order[i], mult[i], flaglen[i])
             for t in np.linspace(0, Tf, 100)]))
 
     # Find the max of each each variable
@@ -262,7 +262,7 @@ def test_2d_curvature_ifc_ltc():
 
     # Resolve with constrainted inputs
     ltc_coefs, ltc_cost, ltc_inform = ntg.ntg(
-        nout, bps, ninterv, order, mult, maxderiv,
+        nout, bps, ninterv, order, mult, flaglen,
         lic=state_constraint_matrix,
         ltc=input_constraint_matrix,
         lfc=state_constraint_matrix,
@@ -283,7 +283,7 @@ def test_2d_curvature_ifc_ltc():
     for i in range(nout):
         ltc_ztraj.append(np.array([
             ntg.spline_interp(t, knots[i], ninterv[i], ltc_coef_list[i],
-                              order[i], mult[i], maxderiv[i])
+                              order[i], mult[i], flaglen[i])
             for t in bps]))
     assert np.max(np.abs(ltc_ztraj[0][:, 2])) <= alpha * u1_max * 1.00001
     assert np.max(np.abs(ltc_ztraj[1][:, 2])) <= alpha * u2_max * 1.00001
@@ -303,7 +303,7 @@ def test_2d_curvature_corridor_single(nltcf_avs):
 
     # System definition
     nout = 2                    # 2 flat outputs
-    maxderiv = [3, 3]           # 3 derivatives in each output
+    flaglen = [3, 3]           # 3 derivatives in each output
 
     # Spline definition
     ninterv = [2, 2]
@@ -334,7 +334,7 @@ def test_2d_curvature_corridor_single(nltcf_avs):
 
     # Compute the optimal trajectory
     p2p_coefs, p2p_cost, p2p_inform = ntg.ntg(
-        nout, bps, ninterv, order, mult, maxderiv,
+        nout, bps, ninterv, order, mult, flaglen,
         lic=state_constraint_matrix, lfc=state_constraint_matrix,
         lowerb=bounds, upperb=bounds,
         tcf=c_tcf, tcf_av=tcf_av)
@@ -347,11 +347,11 @@ def test_2d_curvature_corridor_single(nltcf_avs):
 
     # Get the full trajectory (at breakpoints)
     knots = [np.linspace(0, Tf, ninterv[i] + 1) for i in range(nout)]
-    p2p_ztraj = np.empty((nout, max(maxderiv), bps.size))
+    p2p_ztraj = np.empty((nout, max(flaglen), bps.size))
     for i in range(nout):
         p2p_ztraj[i] = np.array([
             ntg.spline_interp(t, knots[i], ninterv[i], p2p_coef_list[i],
-                              order[i], mult[i], maxderiv[i])
+                              order[i], mult[i], flaglen[i])
             for t in bps]).transpose()
 
     #
@@ -395,7 +395,7 @@ def test_2d_curvature_corridor_single(nltcf_avs):
 
     # Re-solve the problem with initial and final cost
     nltcf_coefs, nltcf_cost, nltcf_inform = ntg.ntg(
-        nout, bps, ninterv, order, mult, maxderiv,
+        nout, bps, ninterv, order, mult, flaglen,
         lic=state_constraint_matrix, lfc=state_constraint_matrix,
         nltcf=c_nltcf_corridor, nltcf_av=nltcf_av, nltcf_num=1,
         lowerb=lowerb, upperb=upperb,
@@ -408,11 +408,11 @@ def test_2d_curvature_corridor_single(nltcf_avs):
     nltcf_coef_list = [nltcf_coefs[:ncoefs[0]], nltcf_coefs[ncoefs[0]:]]
 
     # Get the full trajectory (at breakpoints)
-    nltcf_ztraj = np.empty((nout, max(maxderiv), bps.size))
+    nltcf_ztraj = np.empty((nout, max(flaglen), bps.size))
     for i in range(nout):
         nltcf_ztraj[i] = np.array([
             ntg.spline_interp(t, knots[i], ninterv[i], nltcf_coef_list[i],
-                              order[i], mult[i], maxderiv[i])
+                              order[i], mult[i], flaglen[i])
             for t in bps]).transpose()
 
     # Make sure the new cost is higher
@@ -438,7 +438,7 @@ def test_2d_curvature_corridor_multiple():
 
     # System definition
     nout = 2                    # 2 flat outputs
-    maxderiv = [3, 3]           # 3 derivatives in each output
+    flaglen = [3, 3]           # 3 derivatives in each output
 
     # Spline definition
     ninterv = [2, 2]
@@ -469,7 +469,7 @@ def test_2d_curvature_corridor_multiple():
 
     # Compute the optimal trajectory
     p2p_coefs, p2p_cost, p2p_inform = ntg.ntg(
-        nout, bps, ninterv, order, mult, maxderiv,
+        nout, bps, ninterv, order, mult, flaglen,
         lic=state_constraint_matrix, lfc=state_constraint_matrix,
         lowerb=bounds, upperb=bounds,
         tcf=c_tcf, tcf_av=tcf_av)
@@ -482,11 +482,11 @@ def test_2d_curvature_corridor_multiple():
 
     # Get the full trajectory (at breakpoints)
     knots = [np.linspace(0, Tf, ninterv[i] + 1) for i in range(nout)]
-    p2p_ztraj = np.empty((nout, max(maxderiv), bps.size))
+    p2p_ztraj = np.empty((nout, max(flaglen), bps.size))
     for i in range(nout):
         p2p_ztraj[i] = np.array([
             ntg.spline_interp(t, knots[i], ninterv[i], p2p_coef_list[i],
-                              order[i], mult[i], maxderiv[i])
+                              order[i], mult[i], flaglen[i])
             for t in bps]).transpose()
 
     #
@@ -532,7 +532,7 @@ def test_2d_curvature_corridor_multiple():
 
     # Re-solve the problem with initial and final cost
     nltcf_coefs, nltcf_cost, nltcf_inform = ntg.ntg(
-        nout, bps, ninterv, order, mult, maxderiv,
+        nout, bps, ninterv, order, mult, flaglen,
         lic=state_constraint_matrix, lfc=state_constraint_matrix,
         nltcf=c_nltcf_corridor, nltcf_av=nltcf_av, nltcf_num=2,
         lowerb=lowerb, upperb=upperb,
@@ -545,11 +545,11 @@ def test_2d_curvature_corridor_multiple():
     nltcf_coef_list = [nltcf_coefs[:ncoefs[0]], nltcf_coefs[ncoefs[0]:]]
 
     # Get the full trajectory (at breakpoints)
-    nltcf_ztraj = np.empty((nout, max(maxderiv), bps.size))
+    nltcf_ztraj = np.empty((nout, max(flaglen), bps.size))
     for i in range(nout):
         nltcf_ztraj[i] = np.array([
             ntg.spline_interp(t, knots[i], ninterv[i], nltcf_coef_list[i],
-                              order[i], mult[i], maxderiv[i])
+                              order[i], mult[i], flaglen[i])
             for t in bps]).transpose()
 
     # Make sure the new cost is higher

@@ -84,7 +84,7 @@ void ntg(
   double **knots,	 /* Knot points for each output */
   int *order,		 /* orders of the outputs */
   int *mult,		 /* multiplicities of the outputs */
-  int *maxderiv,	 /* Max derivative + 1  occurring in each output */
+  int *flaglen,		 /* Max derivative + 1  occurring in each output */
   double *initialguess,	 /* initial b-spline coefficient guess */
   int nlic, double **lic,
   int nltc, double **ltc,
@@ -148,7 +148,7 @@ void ntg(
    */
 
   Gccolloc = ConcatCollocMatrix(nout, knots, kninterv, bps,
-			      nbps, maxderiv, order, mult);
+			      nbps, flaglen, order, mult);
   /*cbug*/
   /*PrintColloc("colloc", Gccolloc->colloc[0]); */
 

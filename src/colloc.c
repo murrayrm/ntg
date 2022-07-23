@@ -18,7 +18,7 @@ double **knots,
 int *ninterv,
 double *bps,
 int nbps,
-int *maxderiv,
+int *flaglen,
 int *order,
 int *mult)
 {
@@ -36,15 +36,15 @@ int *mult)
 		i<nout;i++)
 	{
 		ccolloc->colloc[i]=CollocMatrix(knots[i],ninterv[i],bps,nbps,
-			maxderiv[i],order[i],mult[i]);
+			flaglen[i],order[i],mult[i]);
 		assert(ccolloc->colloc[i]!=NULL);
 		if(i!=0)
 		{
 			ccolloc->iZ[i]=ccolloc->iZ[i-1]+ccolloc->colloc[i-1]->rows;
-			ccolloc->iz[i]=ccolloc->iz[i-1]+ccolloc->colloc[i-1]->maxderiv;
+			ccolloc->iz[i]=ccolloc->iz[i-1]+ccolloc->colloc[i-1]->flaglen;
 			ccolloc->iC[i]=ccolloc->iC[i-1]+ccolloc->colloc[i-1]->cols;
 		}
-		ccolloc->nz+=maxderiv[i];
+		ccolloc->nz+=flaglen[i];
 		ccolloc->nC+=ccolloc->colloc[i]->cols;
 	}
 	ccolloc->nZ=ccolloc->nz*nbps;
@@ -59,7 +59,7 @@ double *knots,
 int ninterv,
 double *bps,
 int nbps,
-int maxderiv,
+int flaglen,
 int order,
 int mult)
 {
@@ -75,7 +75,7 @@ int mult)
 	int mflag;
 	int i;
 
-	dbiatx=MakeFMatrix(order,maxderiv);
+	dbiatx=MakeFMatrix(order,flaglen);
 	augknots=malloc(naugknots*sizeof(double));		assert(augknots!=NULL);
 	a=malloc(order*order*sizeof(double));				assert(a!=NULL);
 
@@ -84,9 +84,9 @@ int mult)
 	colloc->ninterv=ninterv;
 	colloc->order=order;
 	colloc->mult=mult;
-	colloc->maxderiv=maxderiv;
+	colloc->flaglen=flaglen;
 	colloc->nbps=nbps;
-	colloc->rows=maxderiv*nbps;
+	colloc->rows=flaglen*nbps;
 	colloc->cols=n;
 	
 	side_.m=mult;
@@ -96,8 +96,8 @@ int mult)
 	{
 		x=bps[i];
 		interv_(augknots,&naugknots,&x,&left,&mflag);
-		bsplvd_(augknots,&order,&x,&left,a,dbiatx->elements[0],&maxderiv);
-		colloc->block[i].matrix=MakeFMatrix(maxderiv,order);
+		bsplvd_(augknots,&order,&x,&left,a,dbiatx->elements[0],&flaglen);
+		colloc->block[i].matrix=MakeFMatrix(flaglen,order);
 		FTranspose(colloc->block[i].matrix,dbiatx);
 	}
 	/* place in a separate for loop so interv_ doesn't have to search so much*/
@@ -230,8 +230,8 @@ void PrintColloc(char *filename,Colloc *colloc)
 		vout[i]=0.0;
 
 	m1=MakeFMatrix(1,colloc->order);
-	m2=MakeFMatrix(1,colloc->maxderiv);
-	memcpy(m2->elements[0],v,colloc->maxderiv*sizeof(double));
+	m2=MakeFMatrix(1,colloc->flaglen);
+	memcpy(m2->elements[0],v,colloc->flaglen*sizeof(double));
 	FMatrixMult(m1,m2,colloc->block[b].matrix);
 	memcpy(vout+offset,m1->elements[0],colloc->order*sizeof(double));
 
@@ -252,7 +252,7 @@ void CollocConcatMultI(FMatrix *dIdC,FMatrix *dIdZ,ConcatColloc *ccolloc)
 	for(k=0;k<ccolloc->colloc[j]->order;k++)
 	{
      J=ccolloc->iC[j]+k;
-     for(l=0,dIdC->elements[J][I]=0;l<ccolloc->colloc[j]->maxderiv;l++)
+     for(l=0,dIdC->elements[J][I]=0;l<ccolloc->colloc[j]->flaglen;l++)
        dIdC->elements[J][I]+=
        dIdZ->elements[ccolloc->iZ[j]+l][I]*
        ccolloc->colloc[j]->block[0].matrix->elements[k][l];
@@ -274,10 +274,10 @@ void CollocConcatMultT(FMatrix *dIdC,FMatrix *dIdZ,ConcatColloc *ccolloc)
       for(k=ccolloc->colloc[j]->block[i].offset;
 		k<ccolloc->colloc[j]->block[i].offset+ccolloc->colloc[j]->order;k++)
 		for(l=0,dIdC->elements[ccolloc->iC[j]+k][I]=0;
-		l<ccolloc->colloc[j]->maxderiv;l++)
+		l<ccolloc->colloc[j]->flaglen;l++)
 		{
 			dIdC->elements[ccolloc->iC[j]+k][I]+=
-			dIdZ->elements[ccolloc->iZ[j]+i*ccolloc->colloc[j]->maxderiv+l][I]*
+			dIdZ->elements[ccolloc->iZ[j]+i*ccolloc->colloc[j]->flaglen+l][I]*
 			ccolloc->colloc[j]->block[i].matrix->elements
 			[k-ccolloc->colloc[j]->block[i].offset][l];
 		}
@@ -296,16 +296,16 @@ void CollocConcatMultF(FMatrix *dIdC,FMatrix *dIdZ,ConcatColloc *ccolloc)
    for(k=0;k<ccolloc->colloc[j]->order;k++)
    {
      J=ccolloc->iC[j]+ccolloc->colloc[j]->block[ccolloc->nbps-1].offset+k;
-     for(l=0,dIdC->elements[J][I]=0;l<ccolloc->colloc[j]->maxderiv;l++)
+     for(l=0,dIdC->elements[J][I]=0;l<ccolloc->colloc[j]->flaglen;l++)
      {
        if(j==ccolloc->nout-1)
 		   dIdC->elements[J][I]+=dIdZ->elements
-				[ccolloc->iZ[j]+ccolloc->colloc[j]->maxderiv*
-				ccolloc->nbps-ccolloc->colloc[j]->maxderiv+l][I]*
+				[ccolloc->iZ[j]+ccolloc->colloc[j]->flaglen*
+				ccolloc->nbps-ccolloc->colloc[j]->flaglen+l][I]*
 		   	ccolloc->colloc[j]->block[ccolloc->nbps-1].matrix->elements[k][l];
        else
 		   dIdC->elements[J][I]+=dIdZ->elements
-				[ccolloc->iZ[j+1]-ccolloc->colloc[j]->maxderiv+l][I]*
+				[ccolloc->iZ[j+1]-ccolloc->colloc[j]->flaglen+l][I]*
 		   	ccolloc->colloc[j]->block[ccolloc->nbps-1].matrix->elements[k][l];
 	  }
 	}
@@ -327,18 +327,18 @@ double Zvalue(ConcatColloc *ccolloc,double *C,int output,int deriv,int bp)
 
 int odb2lin(ConcatColloc *ccolloc,int output,int deriv,int bp)
 {
-	return ccolloc->iZ[output]+ccolloc->colloc[output]->maxderiv*bp+deriv;
+	return ccolloc->iZ[output]+ccolloc->colloc[output]->flaglen*bp+deriv;
 }
 
 int db2lin(Colloc *colloc,int deriv,int bp)
 {
-	return bp*colloc->maxderiv+deriv;
+	return bp*colloc->flaglen+deriv;
 }
 
 void lin2db(int *deriv,int *bp,Colloc *colloc,int i)
 {
-	*deriv=i%(colloc->maxderiv);	/* row in the block */
-	*bp=i/(colloc->maxderiv);		/* the number of the block i'm in */
+	*deriv=i%(colloc->flaglen);	/* row in the block */
+	*bp=i/(colloc->flaglen);		/* the number of the block i'm in */
 }
 
 void updateZ(double *Z,ConcatColloc *ccolloc,double *C,AV *av,int nav,int type)
@@ -376,7 +376,7 @@ void dIdz2dIdZI(FMatrix *dIdZ,FMatrix *dIdz,ConcatColloc *ccolloc)
 
 	for(i=0;i<dIdZ->rows;i++)
 	for(j=0;j<ccolloc->nout;j++)
-	for(k=0;k<ccolloc->colloc[j]->maxderiv;k++)
+	for(k=0;k<ccolloc->colloc[j]->flaglen;k++)
 		dIdZ->elements[ccolloc->iZ[j]+k][i]=
 		dIdz->elements[i][ccolloc->iz[j]+k];
 }
@@ -392,9 +392,9 @@ void dIdz2dIdZT(FMatrix *dIdZ,FMatrix *dIdz,ConcatColloc *ccolloc,int bp)
 
 	for(i=0;i<dIdz->cols;i++)
 	for(j=0;j<ccolloc->nout;j++)
-	for(k=0;k<ccolloc->colloc[j]->maxderiv;k++)
+	for(k=0;k<ccolloc->colloc[j]->flaglen;k++)
 		dIdZ->elements
-		[ccolloc->iZ[j]+bp*ccolloc->colloc[j]->maxderiv+k][i*ccolloc->nbps+bp]=
+		[ccolloc->iZ[j]+bp*ccolloc->colloc[j]->flaglen+k][i*ccolloc->nbps+bp]=
 		dIdz->elements[i][ccolloc->iz[j]+k];
 }
 
@@ -411,13 +411,13 @@ void dIdz2dIdZF(FMatrix *dIdZ,FMatrix *dIdz,ConcatColloc *ccolloc)
 		if(ccolloc->nout!=1)
 		{
 			for(j=0;j<ccolloc->nout-1;j++)
-			for(k=0;k<ccolloc->colloc[j]->maxderiv;k++)
-				dIdZ->elements[ccolloc->iZ[j+1]-ccolloc->colloc[j]->maxderiv+k][i]=
+			for(k=0;k<ccolloc->colloc[j]->flaglen;k++)
+				dIdZ->elements[ccolloc->iZ[j+1]-ccolloc->colloc[j]->flaglen+k][i]=
 				dIdz->elements[i][ccolloc->iz[j]+k];
 		}
-		for(k=0;k<ccolloc->colloc[ccolloc->nout-1]->maxderiv;k++)
+		for(k=0;k<ccolloc->colloc[ccolloc->nout-1]->flaglen;k++)
 			dIdZ->elements
-			[ccolloc->nZ-ccolloc->colloc[ccolloc->nout-1]->maxderiv+k][i]=
+			[ccolloc->nZ-ccolloc->colloc[ccolloc->nout-1]->flaglen+k][i]=
 			dIdz->elements[i][ccolloc->iz[ccolloc->nout-1]+k];
 	}
 }
@@ -433,7 +433,7 @@ void Z2zpT(double **zp,double *Z,ConcatColloc *ccolloc,int bp)
 {
 	int i;
 	for(i=0;i<ccolloc->nout;i++)
-		zp[i]=&(Z[ccolloc->iZ[i]+bp*ccolloc->colloc[i]->maxderiv]);
+		zp[i]=&(Z[ccolloc->iZ[i]+bp*ccolloc->colloc[i]->flaglen]);
 }
 
 void Z2zpF(double **zp,double *Z,ConcatColloc *ccolloc)
@@ -441,21 +441,21 @@ void Z2zpF(double **zp,double *Z,ConcatColloc *ccolloc)
 	int i;
 	if(ccolloc->nout!=1)
 		for(i=0;i<ccolloc->nout-1;i++)
-			zp[i]=&(Z[ccolloc->iZ[i+1]-ccolloc->colloc[i]->maxderiv]);
+			zp[i]=&(Z[ccolloc->iZ[i+1]-ccolloc->colloc[i]->flaglen]);
 	zp[ccolloc->nout-1]=
-	&(Z[ccolloc->nZ-ccolloc->colloc[ccolloc->nout-1]->maxderiv]);
+	&(Z[ccolloc->nZ-ccolloc->colloc[ccolloc->nout-1]->flaglen]);
 }
 
 void SplineInterp(
 double *f,double x,double *knots,int ninterv,double *coefs,int ncoefs,
-int order,int mult,int maxderiv)
+int order,int mult,int flaglen)
 {
 	int nknots=ninterv+1;
 	int n=ninterv*(order-mult)+mult;
 	int naugknots=n+order;
 	double *augknots=malloc(naugknots*sizeof(double));
 	double *a=malloc(order*order*sizeof(double));
-	double *dbiatx=malloc(order*maxderiv*sizeof(double));
+	double *dbiatx=malloc(order*flaglen*sizeof(double));
 	static int left1;
 	static int left2;
 	int mflag;
@@ -467,12 +467,12 @@ int order,int mult,int maxderiv)
 	knots_(knots,&ninterv,&order,augknots,&n);
 
 	interv_(augknots,&naugknots,&x,&left1,&mflag);
-	bsplvd_(augknots,&order,&x,&left1,a,dbiatx,&maxderiv);
+	bsplvd_(augknots,&order,&x,&left1,a,dbiatx,&flaglen);
 
 	interv_(knots,&nknots,&x,&left2,&mflag);
 	offset=(left2-1)*(order-mult);
 
-	for(i=0;i<maxderiv;i++)
+	for(i=0;i<flaglen;i++)
 	{
 		i1=i*order;
 		for(j=0,f[i]=0.0;j<order;j++)

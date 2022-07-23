@@ -47,7 +47,7 @@ def ntg(
     nintervals=None,            # number of intervals
     order=None,                 # order of polynomial (for each output)
     multiplicity=None,          # multiplicity at knot points (for each output)
-    maxderivs=None,             # max number of derivatives (for each output)
+    flaglen=None,               # max number of derivatives + 1 (for each output)
     knotpoints=None,            # knot points
     icf=None, icf_av=None,      # initial cost function, active vars
     tcf=None, tcf_av=None,      # trajectory cost function, active vars
@@ -108,7 +108,7 @@ def ntg(
     # inferring values and dimensions from other information, when possible.
     #
 
-    # Utility function for broadcasting spline parameters (order, maxderiv,
+    # Utility function for broadcasting spline parameters (order, flaglen,
     # ninterv, mult)
     def process_spline_parameters(
             values, nout, allowed_types, minimum=0, default=None, name='unknown'):
@@ -226,20 +226,20 @@ def ntg(
             "initial and final knot points must be outside of break point range")
 
     # Maximum number of derivatives for each flat output
-    maxderivs = process_spline_parameters(
-        maxderivs, nout, (int), name='maxderivs', minimum=0)
-    if maxderivs is None:
-        raise ValueError("missing value(s) for maxderivs")
+    flaglen = process_spline_parameters(
+        flaglen, nout, (int), name='flaglen', minimum=0)
+    if flaglen is None:
+        raise ValueError("missing value(s) for flaglen")
 
     # Order of polynomial; set default to maximum number of derivativs
     order = process_spline_parameters(
         order, nout, (int), name='order', minimum=1,
-        default=[derivs + 1 for derivs in maxderivs])
+        default=[derivs + 1 for derivs in flaglen])
 
     # Multiplicity at knotpoints; set default to maximum number of derives
     multiplicity = process_spline_parameters(
         multiplicity, nout, (int), name='multiplicity',
-        minimum=1, default=maxderivs)
+        minimum=1, default=flaglen)
 
     #
     # Create the C data structures needed for ntg()
@@ -255,7 +255,7 @@ def ntg(
     cdef int [:] c_ninterv = init_c_array_1d(nintervals, nout, np.intc)
     cdef int [:] c_order = init_c_array_1d(order, nout, np.intc)
     cdef int [:] c_mult = init_c_array_1d(multiplicity, nout, np.intc)
-    cdef int [:] c_maxderiv = init_c_array_1d(maxderivs, nout, np.intc)
+    cdef int [:] c_flaglen = init_c_array_1d(flaglen, nout, np.intc)
 
     # Breakpoints
     cdef int nbps = breakpoints.shape[0]
@@ -302,16 +302,16 @@ def ntg(
 
     # Nonlinear initial condition constraints
     nnlic, nlic_addr, ninitialconstrav, c_initialconstrav = \
-        _parse_callback(nlicf, nlicf_av, nout, c_maxderiv, num=nlicf_num)
+        _parse_callback(nlicf, nlicf_av, nout, c_flaglen, num=nlicf_num)
     c_nlic = (<ntg_vector_cbf *> nlic_addr)[0]
 
     # Nonlinear trajectory constraints
     nnltc, nltc_addr, ntrajectoryconstrav, c_trajectoryconstrav = \
-        _parse_callback(nltcf, nltcf_av, nout, c_maxderiv, num=nltcf_num)
+        _parse_callback(nltcf, nltcf_av, nout, c_flaglen, num=nltcf_num)
     c_nltc = (<ntg_vector_traj_cbf *> nltc_addr)[0]
 
     nnlfc, nlfc_addr, nfinalconstrav, c_finalconstrav = \
-        _parse_callback(nlfcf, nlfcf_av, nout, c_maxderiv, num=nlfcf_num)
+        _parse_callback(nlfcf, nlfcf_av, nout, c_flaglen, num=nlfcf_num)
     c_nlfc = (<ntg_vector_cbf *> nlfc_addr)[0]
 
     # Bounds on the constraints
@@ -331,15 +331,15 @@ def ntg(
     # Cost function callbacks
     #
     nicf, icf_addr, ninitialcostav, c_initialcostav = \
-        _parse_callback(icf, icf_av, nout, c_maxderiv, num=1)
+        _parse_callback(icf, icf_av, nout, c_flaglen, num=1)
     c_icf = (<ntg_scalar_cbf *> icf_addr)[0]
 
     ntcf, tcf_addr, ntrajectorycostav, c_trajectorycostav = \
-        _parse_callback(tcf, tcf_av, nout, c_maxderiv, num=1)
+        _parse_callback(tcf, tcf_av, nout, c_flaglen, num=1)
     c_tcf = (<ntg_scalar_traj_cbf *> tcf_addr)[0]
 
     nfcf, fcf_addr, nfinalcostav, c_finalcostav = \
-        _parse_callback(fcf, fcf_av, nout, c_maxderiv, num=1)
+        _parse_callback(fcf, fcf_av, nout, c_flaglen, num=1)
     c_fcf = (<ntg_scalar_cbf *> fcf_addr)[0]
 
     # NTG internal memory
@@ -360,7 +360,7 @@ def ntg(
 
     ntg.c_ntg(
         nout, &c_bps[0], nbps, &c_ninterv[0], &c_knots[0],
-        &c_order[0], &c_mult[0], &c_maxderiv[0], &c_coefs[0],
+        &c_order[0], &c_mult[0], &c_flaglen[0], &c_coefs[0],
         nlic,                c_lic,
         nltc,                c_ltc,
         nlfc,                c_lfc,
@@ -389,14 +389,14 @@ def ntg(
 
     return coefs, objective, inform
 
-def spline_interp(x, knots, ninterv, coefs, order, mult, maxderiv):
+def spline_interp(x, knots, ninterv, coefs, order, mult, flaglen):
     cdef double [:] c_knots = knots
     cdef double [:] c_coefs = coefs
     cdef int ncoefs = len(coefs)
-    cdef np.ndarray[double, ndim=1, mode='c'] fz = np.empty(maxderiv)
+    cdef np.ndarray[double, ndim=1, mode='c'] fz = np.empty(flaglen)
     ntg.SplineInterp(
         &fz[0], x, &c_knots[0], ninterv, &c_coefs[0], len(coefs),
-        order, mult, maxderiv)
+        order, mult, flaglen)
 
     # Store results in an ndarray and free up memory
     return fz
@@ -433,7 +433,7 @@ cdef void noop() nogil:
 
 # Cython function to parse callbacks
 cdef (int, size_t, int, AV *) _parse_callback(
-        ctypes_fcn, avlist, nout, maxderiv, num=None, name='unknown'):
+        ctypes_fcn, avlist, nout, flaglen, num=None, name='unknown'):
     if ctypes_fcn is None:
         if avlist is not None:
             raise ValueError(
@@ -463,13 +463,13 @@ cdef (int, size_t, int, AV *) _parse_callback(
         # Figure out how many entries we need
         nav = 0
         for i in range(nout):
-            nav += maxderiv[i]
+            nav += flaglen[i]
 
         # Make all variables active
         c_av = <AV *> calloc(nav, sizeof(AV))
         k = 0
         for i in range(nout):
-            for j in range(maxderiv[i]):
+            for j in range(flaglen[i]):
                 c_av[k].output = i
                 c_av[k].deriv = j
                 k = k + 1

@@ -34,8 +34,8 @@ install: build
 # build without installing
 build:
 	(cd src; make CFLAGS="$(CFLAGS)")
-	(cd npsol; make FFLAGS="$(FFLAGS)")
-	(cd pgs; make FFLAGS="$(FFLAGS)")
+	(cd npsol; make F77=$(F77) FFLAGS="$(FFLAGS)")
+	(cd pgs; make F77=$(F77) FFLAGS="$(FFLAGS)")
 	(cd python; make build)
 	(cd examples; make build)
 

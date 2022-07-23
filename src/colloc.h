@@ -51,7 +51,7 @@ typedef struct CollocStruct
 	int ninterv;
 	int order;
 	int mult;
-	int maxderiv;
+	int flaglen;
 	int nbps;
 	int rows;
 	int cols;
@@ -72,10 +72,10 @@ typedef struct ConcatCollocStruct
 
 ConcatColloc *ConcatCollocMatrix(
 	int nout,double **knots,int *ninterv, double *bps, int nbps,
-	int *maxderiv,int *order,int *mult);
+	int *flaglen,int *order,int *mult);
 Colloc *CollocMatrix(
 	double *knots,int ninterv,double *bps,
-	int nbps,int maxderiv,int order,int mult);
+	int nbps,int flaglen,int order,int mult);
 void FreeConcatColloc(ConcatColloc *ccolloc);
 void FreeColloc(Colloc *colloc);
 void CollocMult(FMatrix *B,FMatrix *A,Colloc *colloc);
@@ -102,7 +102,7 @@ void Z2zpF(double **zp,double *Z,ConcatColloc *ccolloc);
 
 void SplineInterp(
 double *f,double x,double *knots,int ninterv,double *coeffs,int ncoeffs,
-int order,int mult,int maxderiv);
+int order,int mult,int flaglen);
 
 /*
 CollocMatrix()
@@ -209,7 +209,7 @@ multiplies the vector by the submatrix of colloc that is all the columns in the
 collocation matrix by the same rows that contain block b.
 
 vector: place to store the result. size [colloc->cols]
-v: vector to multiply. size [colloc->maxderiv]
+v: vector to multiply. size [colloc->flaglen]
 colloc: the collocation matrix
 b: the number of the block in the collocation matrix
 

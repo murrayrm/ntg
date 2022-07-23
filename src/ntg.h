@@ -37,13 +37,13 @@
  * knots: knot points for each output
  * order: order of spline outputs
  * mult: continuity condition of the outputs
- * maxderiv: maximum derivative required for each output
+ * flaglen: number of derivatives required for each output + 1
  * initialguess: self-explanatory
  * nlic: number of linear initial constraints.
  * nlic, lic: linear initial constraints.
- *   size[nlic, sum(maxderiv, over all outputs)]
- * nltc, ltc: linear trajectory constraints. size(nltc,sum(maxderiv));
- * nlfc, lfc: linear final constraints. size(nlfc,sum(maxderiv));
+ *   size[nlic, sum(flaglen, over all outputs)]
+ * nltc, ltc: linear trajectory constraints. size(nltc,sum(flaglen));
+ * nlfc, lfc: linear final constraints. size(nlfc,sum(flaglen));
  *
  * nnlic: no. of nonlinear initial constraints.
  * nlicf: nonlinear initial constraint function.

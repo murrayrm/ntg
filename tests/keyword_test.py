@@ -146,12 +146,11 @@ def test_nintervals_knotpoints(knotpoints, nintervals, exception):
 
 # TODO: figure out why commented out cases crash
 @pytest.mark.parametrize("kwargs, exception, match", [
-    ({}, ValueError, r"missing value\(s\) for maxderivs"),
-    ({'maxderivs': 3, 'order': 6, 'multiplicity': 3}, None, None),
-    ({'maxderivs': 3, 'order': [2, 6], 'multiplicity': 3}, None, None),
-    # ({'maxderivs': 2, 'order': 6, 'multiplicity': 2}, None, None),
-    # ({'maxderivs': 3, 'verbose': True}, None, None),
-    ({'maxderivs': 3, 'order': [2, 6, 1], 'multiplicity': 3}, ValueError, None),
+    ({}, ValueError, r"missing value\(s\) for flaglen"),
+    ({'flaglen': 3, 'order': 6, 'multiplicity': 3}, None, None),
+    ({'flaglen': 3, 'order': [2, 6], 'multiplicity': 3}, None, None),
+    # ({'flaglen': 3, 'verbose': True}, None, None),
+    ({'flaglen': 3, 'order': [2, 6, 1], 'multiplicity': 3}, ValueError, None),
     ])
 def test_spline_parameters(kwargs, exception, match):
     # Cost function: curvature

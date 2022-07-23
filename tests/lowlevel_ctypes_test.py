@@ -20,7 +20,7 @@ cfcns = ctypes.cdll.LoadLibrary('lowlevel.so')
 def test_2d_curvature_p2p(zf_0, zf_f, Tf, ninterv, mult, order):
     # System setup
     nout = 2                    # 2 flat outputs
-    maxderiv = [3, 3]           # 3 derivatives in each output
+    flaglen = [3, 3]            # 2 derivatives in each output
 
     # Breakpoints: linearly spaced
     bps = np.linspace(0, Tf, 30)
@@ -39,7 +39,7 @@ def test_2d_curvature_p2p(zf_0, zf_f, Tf, ninterv, mult, order):
 
     # Compute the optimal trajectory
     coefs, cost, inform = ntg.ntg(
-        nout, bps, ninterv, order, mult, maxderiv,
+        nout, bps, ninterv, order, mult, flaglen,
         lic=state_constraint_matrix, lfc=state_constraint_matrix,
         lowerb=bounds, upperb=bounds,
         tcf=c_tcf, tcf_av=tcf_av)
@@ -56,12 +56,12 @@ def test_2d_curvature_p2p(zf_0, zf_f, Tf, ninterv, mult, order):
     knots = [np.linspace(0, Tf, ninterv[i] + 1) for i in range(nout)]
 
     z0_check = [ntg.spline_interp(0., knots[i], ninterv[i],
-                                 coef_list[i], order[i], mult[i], maxderiv[i])
+                                 coef_list[i], order[i], mult[i], flaglen[i])
                 for i in range(nout)]
     np.testing.assert_almost_equal(np.hstack(z0_check), zf_0)
 
     zf_check = [ntg.spline_interp(Tf, knots[i], ninterv[i],
-                                 coef_list[i], order[i], mult[i], maxderiv[i])
+                                 coef_list[i], order[i], mult[i], flaglen[i])
                 for i in range(nout)]
     np.testing.assert_almost_equal(np.hstack(zf_check), zf_f)
 
@@ -73,7 +73,7 @@ def test_2d_curvature_ifc_ltc():
 
     # System definition
     nout = 2                    # 2 flat outputs
-    maxderiv = [3, 3]           # 3 derivatives in each output
+    flaglen = [3, 3]           # 3 derivatives in each output
 
     # Spline definition
     ninterv = [2, 2]
@@ -104,7 +104,7 @@ def test_2d_curvature_ifc_ltc():
 
     # Compute the optimal trajectory
     p2p_coefs, p2p_cost, p2p_inform = ntg.ntg(
-        nout, bps, ninterv, order, mult, maxderiv,
+        nout, bps, ninterv, order, mult, flaglen,
         lic=state_constraint_matrix, lfc=state_constraint_matrix,
         lowerb=bounds, upperb=bounds,
         tcf=c_tcf, tcf_av=tcf_av)
@@ -115,13 +115,13 @@ def test_2d_curvature_ifc_ltc():
     #
 
     c_icf = cfcns.nl_2d_initial_cost
-    icf_av = [ntg.actvar(i, j) for i in range(nout) for j in range(maxderiv[i])]
+    icf_av = [ntg.actvar(i, j) for i in range(nout) for j in range(flaglen[i])]
     c_fcf = cfcns.nl_2d_final_cost
-    fcf_av = [ntg.actvar(i, j) for i in range(nout) for j in range(maxderiv[i])]
+    fcf_av = [ntg.actvar(i, j) for i in range(nout) for j in range(flaglen[i])]
 
     # Re-solve the problem with initial and final cost
     ifc_coefs, ifc_cost, ifc_inform = ntg.ntg(
-        nout, bps, ninterv, order, mult, maxderiv,
+        nout, bps, ninterv, order, mult, flaglen,
         icf=c_icf, icf_av=icf_av,
         fcf=c_fcf, fcf_av=fcf_av,
         tcf=c_tcf, tcf_av=tcf_av)
@@ -148,15 +148,15 @@ def test_2d_curvature_ifc_ltc():
     # Figure out starting and ending points
     knots = [np.linspace(0, Tf, ninterv[i] + 1) for i in range(nout)]
     ifc_z0 = [ntg.spline_interp(0., knots[i], ninterv[i], ifc_coef_list[i],
-                                order[i], mult[i], maxderiv[i])
+                                order[i], mult[i], flaglen[i])
                 for i in range(nout)]
     ifc_zf = [ntg.spline_interp(Tf, knots[i], ninterv[i], ifc_coef_list[i],
-                                order[i], mult[i], maxderiv[i])
+                                order[i], mult[i], flaglen[i])
                 for i in range(nout)]
 
     k = 0
     for i in range(nout):
-        for j in range(maxderiv[i]):
+        for j in range(flaglen[i]):
             assert abs(ifc_z0[i][j] - z0[k]) <= eps
             k += 1
 
@@ -169,7 +169,7 @@ def test_2d_curvature_ifc_ltc():
     for i in range(nout):
         ztraj.append(np.array([
             ntg.spline_interp(t, knots[i], ninterv[i], ifc_coef_list[i],
-                              order[i], mult[i], maxderiv[i])
+                              order[i], mult[i], flaglen[i])
             for t in np.linspace(0, Tf, 100)]))
 
     # Find the max of each each variable
@@ -189,7 +189,7 @@ def test_2d_curvature_ifc_ltc():
 
     # Resolve with constrainted inputs
     ltc_coefs, ltc_cost, ltc_inform = ntg.ntg(
-        nout, bps, ninterv, order, mult, maxderiv,
+        nout, bps, ninterv, order, mult, flaglen,
         lic=state_constraint_matrix,
         ltc=input_constraint_matrix,
         lfc=state_constraint_matrix,
@@ -210,7 +210,7 @@ def test_2d_curvature_ifc_ltc():
     for i in range(nout):
         ltc_ztraj.append(np.array([
             ntg.spline_interp(t, knots[i], ninterv[i], ltc_coef_list[i],
-                              order[i], mult[i], maxderiv[i])
+                              order[i], mult[i], flaglen[i])
             for t in bps]))
     assert np.max(np.abs(ltc_ztraj[0][:, 2])) <= alpha * u1_max * 1.00001
     assert np.max(np.abs(ltc_ztraj[1][:, 2])) <= alpha * u2_max * 1.00001
