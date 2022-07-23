@@ -63,11 +63,12 @@ def test_linear_constraints():
         state_constraint_matrix, final_val, final_val)
 
     # Compute the optimal trajectory
-    coefs, cost, inform = ntg.ntg(
+    systraj, cost, inform = ntg.ntg(
         nout, bps, ninterv, order, mult, flaglen,
         initial_constraints=initial_constraints,
         final_constraints=final_constraints,
         tcf=c_tcf, tcf_av=tcf_av, verbose=True)
+    coefs = systraj.coefs
 
     # Make sure the optimization succeeded
     assert inform == 0 or inform == 1
@@ -108,7 +109,18 @@ def test_nonlinear_constraints():
     final_constraints = sp.optimize.LinearConstraint(
         state_constraint_matrix, final_val, final_val)
 
+    # Compute the optimal trajectory
+    systraj, cost, inform = ntg.ntg(
+        nout, bps, ninterv, order, mult, flaglen,
+        initial_constraints=initial_constraints,
+        final_constraints=final_constraints,
+        tcf=c_tcf, tcf_av=tcf_av, verbose=True)
+
+    # Make sure the optimization succeeded
+    assert inform == 0 or inform == 1
+
     # Define a nonlinear constraint on the inputs
+    input_limit = 0.9 * max(systraj.eval(bps)[1, 2] ** 2)
     @numba.cfunc(ntg.numba_trajectory_constraint_signature)
     def bounded_input(mode, nstate, i, f, df, zp):
         if mode[0] ==0 or mode[0] == 2:
@@ -119,19 +131,20 @@ def test_nonlinear_constraints():
             df[0][3] = 0; df[0][4] = 0; df[0][5] = 2 * zp[1][2]
 
     trajectory_constraints = sp.optimize.NonlinearConstraint(
-        bounded_input.ctypes, -1, 1)
+        bounded_input.ctypes, 0, input_limit)
 
-    # Compute the optimal trajectory
-    coefs, cost, inform = ntg.ntg(
+    # Re-solve with nonlinear constraint and active variables specified
+    avs_systraj, avs_cost, avs_inform = ntg.ntg(
         nout, bps, ninterv, order, mult, flaglen,
         initial_constraints=initial_constraints,
         final_constraints=final_constraints,
         trajectory_constraints=trajectory_constraints,
+        trajectory_constraint_actvars=[ntg.actvar(1, 2)],
         tcf=c_tcf, tcf_av=tcf_av, verbose=True)
 
-    # Make sure the optimization succeeded
+    # Make sure the constraints were satisfied (with some slop)
     assert inform == 0 or inform == 1
-
+    assert all(avs_systraj.eval(bps)[1, 2] ** 2 <= input_limit * 1.0001)
 
 def test_constraint_errors():
     # Cost function: curvature
@@ -155,7 +168,7 @@ def test_constraint_errors():
 
     with pytest.raises(TypeError):
         # Specifying the same constraint in two ways
-        coefs, cost, inform = ntg.ntg(
+        systraj, cost, inform = ntg.ntg(
             nout, bps, ninterv, order, mult, flaglen,
             initial_constraints=initial_constraints,
             lic=state_constraint_matrix, lowerb=bounds, upperb=bounds,
@@ -163,8 +176,18 @@ def test_constraint_errors():
 
     with pytest.raises(TypeError):
         # Mixing up types of constraints
-        coefs, cost, inform = ntg.ntg(
+        systraj, cost, inform = ntg.ntg(
             nout, bps, ninterv, order, mult, flaglen,
             initial_constraints=initial_constraints,
             lfc=state_constraint_matrix, lowerb=bounds, upperb=bounds,
+            tcf=c_tcf, tcf_av=tcf_av, verbose=True)
+
+    with pytest.raises(TypeError):
+        # Specifiying the same active variable in two ways
+        systraj, cost, inform = ntg.ntg(
+            nout, bps, ninterv, order, mult, flaglen,
+            initial_constraints=initial_constraints,
+            initial_constraint_actvars=[ntg.actvar(0,1)],
+            nlicf_avs=[ntg.actvar(0,1)],
+            lowerb=bounds, upperb=bounds,
             tcf=c_tcf, tcf_av=tcf_av, verbose=True)

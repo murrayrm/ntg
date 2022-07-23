@@ -37,6 +37,102 @@ def npsol_option(s):
     ntg.npsoloption(c_string)
 
 #
+# SystemTrajectory class
+#
+# This class is used to return a system trajectory, modeled on the
+# python.flatsys class of the same name.
+#
+
+class SystemTrajectory:
+    """Class representing a system trajectory.
+
+    The `SystemTrajectory` class is used to represent the trajectory of a
+    (differentially flat) system.  Used by the :func:`~ntg.ntg` function to
+    return a trajectory.
+
+    Parameters
+    ----------
+    coefs : 1D array
+        Flat output coefficient list, represented as a stacked array.
+
+    nout : integer
+        Number of independent flat output.
+
+    flaglen : list of ints
+        For each flat output, the number of derivatives of the flat
+        output used to define the trajectory.
+
+    knotpoints : list of 1D arrays
+        For each flat output, the knot points for the B-spline.
+
+    order : list of ints
+        For each flat output, the order of the Bezier polynomial.
+
+    multiplicity : list of ints
+        For each flat output, the multiplicity (smoothness) at the knot points.
+
+    """
+
+    def __init__(self, coefs, nout, flaglen, knotpoints, order, multiplicity):
+        """Initilize a system trajectory object."""
+        # Save the elements
+        self.coefs = coefs
+        self.nout = nout
+        self.flaglen = flaglen
+        self.knotpoints = knotpoints
+        self.order = order
+        self.multiplicity = multiplicity
+
+        # Keep track of the maximum length of a flag
+        self.maxflag = max(flaglen)
+
+        # Store the coefficients for each output (useful later)
+        self.coef_offset, self.coef_length, offset = [], [], 0
+        for i in range(nout):
+            ncoefs = (len(knotpoints[i]) - 1) * \
+                (order[i] - multiplicity[i]) + multiplicity[i]
+            self.coef_offset.append(offset)
+            self.coef_length.append(ncoefs)
+            offset += ncoefs
+
+    # Evaluate the trajectory over a list of time points
+    def eval(self, tlist):
+        """Return the state and input for a trajectory at a list of times.
+
+        Evaluate the trajectory at a list of time points, returning the state
+        and input vectors for the trajectory:
+
+            zflag = traj.eval(tlist)
+
+        Parameters
+        ----------
+        tlist : 1D array
+            List of times to evaluate the trajectory.
+
+        Returns
+        -------
+        zflag : 3D array
+            For each output, the value of the flat flag at the given times.
+            The indices are output, derivative, and time index.
+
+        """
+        # Go through each time point and compute flat variables
+        # TODO: make this more pythonic
+        zflag = np.empty((self.nout, self.maxflag, len(tlist)))
+        zflag.fill(np.nan)
+        for i in range(self.nout):
+            nintervals = self.knotpoints[i].size - 1
+            zflag[i, :self.flaglen[i]] = np.array([spline_interp(
+                t, self.knotpoints[i], nintervals,
+                self.coefs[self.coef_offset[i]:
+                           self.coef_offset[i] + self.coef_length[i]],
+                self.order[i], self.multiplicity[i], self.flaglen[i])
+                                 for t in tlist]).transpose()
+
+        return zflag
+
+
+#
 # Main ntg() function
 #
 # For now this function looks more or less like the C version of ntg(), but
@@ -50,7 +146,7 @@ def ntg(
     order=None,                 # order of polynomial (for each output)
     multiplicity=None,          # multiplicity at knot points (for each output)
     flaglen=None,               # max number of derivatives + 1 (for each output)
-    knotpoints=None,            # knot points
+    knotpoints=None,            # knot points for each output
     icf=None, icf_av=None,      # initial cost function, active vars
     tcf=None, tcf_av=None,      # trajectory cost function, active vars
     fcf=None, fcf_av=None,      # final cost function, active vars
@@ -71,7 +167,7 @@ def ntg(
         for kw in other:
             if kw in kwargs:
                 if primary is not None:
-                    raise TypeError(f"redundant keywords: {primary}, {kw}")
+                    raise TypeError(f"redundant keywords: {name}, {kw}")
                 primary = kwargs.pop(kw)
                 name = kw
         return primary
@@ -87,6 +183,12 @@ def ntg(
     fcf_av = process_alt_kwargs(
         kwargs, fcf_av,
         ['final_cost_actvars', 'terminal_cost_actvars'], 'fcf_av')
+    nlicf_av = process_alt_kwargs(
+        kwargs, nlicf_av, ['initial_constraint_actvars'], 'nlicf_av')
+    nltcf_av = process_alt_kwargs(
+        kwargs, nltcf_av, ['trajectory_constraint_actvars'], 'nltcf_av')
+    nlfcf_av = process_alt_kwargs(
+        kwargs, nlfcf_av, ['final_constraint_actvars'], 'nlfcf_av')
 
     # Make sure there were no additional keyword arguments
     if kwargs:
@@ -445,16 +547,19 @@ def ntg(
 
     # Nonlinear initial condition constraints
     nnlic, nlic_addr, ninitialconstrav, c_initialconstrav = \
-        _parse_callback(nlicf, nlicf_av, nout, c_flaglen, num=nlicf_num)
+        _parse_callback(nlicf, nlicf_av, nout, c_flaglen, num=nlicf_num,
+                        name='initial constraint')
     c_nlic = (<ntg_vector_cbf *> nlic_addr)[0]
 
     # Nonlinear trajectory constraints
     nnltc, nltc_addr, ntrajectoryconstrav, c_trajectoryconstrav = \
-        _parse_callback(nltcf, nltcf_av, nout, c_flaglen, num=nltcf_num)
+        _parse_callback(nltcf, nltcf_av, nout, c_flaglen, num=nltcf_num,
+                        name='trajectory_constraint')
     c_nltc = (<ntg_vector_traj_cbf *> nltc_addr)[0]
 
     nnlfc, nlfc_addr, nfinalconstrav, c_finalconstrav = \
-        _parse_callback(nlfcf, nlfcf_av, nout, c_flaglen, num=nlfcf_num)
+        _parse_callback(nlfcf, nlfcf_av, nout, c_flaglen, num=nlfcf_num,
+                        name='final constraint')
     c_nlfc = (<ntg_vector_cbf *> nlfc_addr)[0]
 
     # Bounds on the constraints
@@ -476,15 +581,16 @@ def ntg(
     # Cost function callbacks
     #
     nicf, icf_addr, ninitialcostav, c_initialcostav = \
-        _parse_callback(icf, icf_av, nout, c_flaglen, num=1)
+        _parse_callback(icf, icf_av, nout, c_flaglen, num=1, name='initial cost')
     c_icf = (<ntg_scalar_cbf *> icf_addr)[0]
 
     ntcf, tcf_addr, ntrajectorycostav, c_trajectorycostav = \
-        _parse_callback(tcf, tcf_av, nout, c_flaglen, num=1)
+        _parse_callback(tcf, tcf_av, nout, c_flaglen, num=1,
+                        name='trajectory cost')
     c_tcf = (<ntg_scalar_traj_cbf *> tcf_addr)[0]
 
     nfcf, fcf_addr, nfinalcostav, c_finalcostav = \
-        _parse_callback(fcf, fcf_av, nout, c_flaglen, num=1)
+        _parse_callback(fcf, fcf_av, nout, c_flaglen, num=1, name='final cost')
     c_fcf = (<ntg_scalar_cbf *> fcf_addr)[0]
 
     # NTG internal memory
@@ -532,7 +638,11 @@ def ntg(
     for k in range(coefs.size):
         coefs[k] = c_coefs[k]
 
-    return coefs, objective, inform
+    # Create a system trajectory object to store the result
+    systraj = SystemTrajectory(
+        coefs, nout, flaglen, knotpoints, order, multiplicity)
+
+    return systraj, objective, inform
 
 def spline_interp(x, knots, ninterv, coefs, order, mult, flaglen):
     cdef double [:] c_knots = knots
@@ -583,7 +693,7 @@ cdef (int, size_t, int, AV *) _parse_callback(
     if ctypes_fcn is None:
         if avlist is not None:
             raise ValueError(
-                f"active variables specified for callback {name}, "
+                f"active variables specified for {name} callback, "
                 f"but no callback function given")
         # nfcn, fcn, nav, avlist
         return 0, <size_t> noop, 0, NULL

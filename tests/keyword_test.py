@@ -56,31 +56,34 @@ def test_icf_keywords():
     bounds = np.hstack([initial_val, final_val])
 
     # Compute the optimal trajectory
-    coefs, cost, inform = ntg.ntg(
+    systraj, cost, inform = ntg.ntg(
         nout, bps, ninterv, order, mult, maxderiv,
         lic=state_constraint_matrix, lfc=state_constraint_matrix,
         lowerb=bounds, upperb=bounds,
         tcf=c_tcf, tcf_av=tcf_av)
+    coefs = systraj.coefs
 
     # Make sure the optimization succeeded
     assert inform == 0 or inform == 1
 
     # Recompute using different keywords: icf -> cost
-    alt_coefs, alt_cost, alt_inform = ntg.ntg(
+    alt_systraj, alt_cost, alt_inform = ntg.ntg(
         nout, bps, ninterv, order, mult, maxderiv,
         lic=state_constraint_matrix, lfc=state_constraint_matrix,
         lowerb=bounds, upperb=bounds,
         cost=c_tcf, cost_actvars=None)
+    alt_coefs = alt_systraj.coefs
     np.testing.assert_array_equal(alt_coefs, coefs)
     assert alt_cost == cost
     assert alt_inform == inform
 
     # Recompute using different keywords: icf -> trajectory_cost
-    alt_coefs, alt_cost, alt_inform = ntg.ntg(
+    alt_systraj, alt_cost, alt_inform = ntg.ntg(
         nout, bps, ninterv, order, mult, maxderiv,
         lic=state_constraint_matrix, lfc=state_constraint_matrix,
         lowerb=bounds, upperb=bounds,
         trajectory_cost=c_tcf, trajectory_cost_actvars=tcf_av)
+    alt_coefs = alt_systraj.coefs
     np.testing.assert_array_equal(alt_coefs, coefs)
     assert alt_cost == cost
     assert alt_inform == inform
@@ -135,7 +138,7 @@ def test_nintervals_knotpoints(knotpoints, nintervals, exception):
 
     # Compute the optimal trajectory
     with expectation:
-        coefs, cost, inform = ntg.ntg(
+        systraj, cost, inform = ntg.ntg(
             nout, bps, nintervals, order, mult, maxderiv, knotpoints=knotpoints,
             lic=state_constraint_matrix, lfc=state_constraint_matrix,
             lowerb=bounds, upperb=bounds, tcf=c_tcf, tcf_av=tcf_av)
@@ -171,7 +174,7 @@ def test_spline_parameters(kwargs, exception, match):
 
     # Compute the optimal trajectory
     with expectation:
-        coefs, cost, inform = ntg.ntg(
+        systraj, cost, inform = ntg.ntg(
             nout, bps, **kwargs,
             lic=state_constraint_matrix, lfc=state_constraint_matrix,
             lowerb=bounds, upperb=bounds, tcf=c_tcf, tcf_av=tcf_av)

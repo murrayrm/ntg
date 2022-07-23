@@ -47,11 +47,12 @@ def test_2d_curvature_p2p(zf_0, zf_f, Tf, ninterv, mult, order):
     bounds = np.hstack([initial_val, final_val])
 
     # Compute the optimal trajectory
-    coefs, cost, inform = ntg.ntg(
+    systraj, cost, inform = ntg.ntg(
         nout, bps, ninterv, order, mult, flaglen,
         lic=state_constraint_matrix, lfc=state_constraint_matrix,
         lowerb=bounds, upperb=bounds,
         tcf=c_tcf, tcf_av=tcf_av)
+    coefs = systraj.coefs
 
     # Make sure the optimization succeedd
     assert inform == 0 or inform == 1
@@ -155,11 +156,12 @@ def test_2d_curvature_ifc_ltc():
     bounds = np.hstack([initial_val, final_val])
 
     # Compute the optimal trajectory
-    p2p_coefs, p2p_cost, p2p_inform = ntg.ntg(
+    p2p_systraj, p2p_cost, p2p_inform = ntg.ntg(
         nout, bps, ninterv, order, mult, flaglen,
         lic=state_constraint_matrix, lfc=state_constraint_matrix,
         lowerb=bounds, upperb=bounds,
         tcf=c_tcf, tcf_av=tcf_av)
+    p2p_coefs = p2p_systraj.coefs
     assert p2p_inform in [0, 1]
 
     #
@@ -172,11 +174,12 @@ def test_2d_curvature_ifc_ltc():
     fcf_av = [ntg.actvar(i, j) for i in range(nout) for j in range(flaglen[i])]
 
     # Re-solve the problem with initial and final cost
-    ifc_coefs, ifc_cost, ifc_inform = ntg.ntg(
+    ifc_systraj, ifc_cost, ifc_inform = ntg.ntg(
         nout, bps, ninterv, order, mult, flaglen,
         icf=c_icf, icf_av=icf_av,
         fcf=c_fcf, fcf_av=fcf_av,
         tcf=c_tcf, tcf_av=tcf_av)
+    ifc_coefs = ifc_systraj.coefs
     assert ifc_inform in [0, 1]
 
     #
@@ -239,13 +242,14 @@ def test_2d_curvature_ifc_ltc():
     ltc_upperb = np.hstack([initial_val, input_constraint_upperb, final_val])
 
     # Resolve with constrainted inputs
-    ltc_coefs, ltc_cost, ltc_inform = ntg.ntg(
+    ltc_systraj, ltc_cost, ltc_inform = ntg.ntg(
         nout, bps, ninterv, order, mult, flaglen,
         lic=state_constraint_matrix,
         ltc=input_constraint_matrix,
         lfc=state_constraint_matrix,
         lowerb=ltc_lowerb, upperb=ltc_upperb,
         tcf=c_tcf, tcf_av=tcf_av)
+    ltc_coefs = ltc_systraj.coefs
     assert ltc_inform in [0, 1]
 
     #
@@ -311,11 +315,12 @@ def test_2d_curvature_corridor_single(nltcf_avs):
     bounds = np.hstack([initial_val, final_val])
 
     # Compute the optimal trajectory
-    p2p_coefs, p2p_cost, p2p_inform = ntg.ntg(
+    p2p_systraj, p2p_cost, p2p_inform = ntg.ntg(
         nout, bps, ninterv, order, mult, flaglen,
         lic=state_constraint_matrix, lfc=state_constraint_matrix,
         lowerb=bounds, upperb=bounds,
         tcf=c_tcf, tcf_av=tcf_av)
+    p2p_coefs = p2p_systraj.coefs
     assert p2p_inform in [0, 1]
 
     # Get the coefficients into a more useful form
@@ -363,12 +368,13 @@ def test_2d_curvature_corridor_single(nltcf_avs):
         [initial_val, final_val, np.array([corridor_radius])])
 
     # Re-solve the problem with initial and final cost
-    nltcf_coefs, nltcf_cost, nltcf_inform = ntg.ntg(
+    nltcf_systraj, nltcf_cost, nltcf_inform = ntg.ntg(
         nout, bps, ninterv, order, mult, flaglen,
         lic=state_constraint_matrix, lfc=state_constraint_matrix,
         nltcf=c_nltcf_corridor, nltcf_av=nltcf_av, nltcf_num=1,
         lowerb=lowerb, upperb=upperb,
         tcf=c_tcf, tcf_av=tcf_av, verbose=True)
+    nltcf_coefs = nltcf_systraj.coefs
     assert nltcf_inform in [0, 1]
 
     # Get the coefficients into a more useful form
@@ -437,11 +443,12 @@ def test_2d_curvature_corridor_multiple():
     bounds = np.hstack([initial_val, final_val])
 
     # Compute the optimal trajectory
-    p2p_coefs, p2p_cost, p2p_inform = ntg.ntg(
+    p2p_systraj, p2p_cost, p2p_inform = ntg.ntg(
         nout, bps, ninterv, order, mult, flaglen,
         lic=state_constraint_matrix, lfc=state_constraint_matrix,
         lowerb=bounds, upperb=bounds,
         tcf=c_tcf, tcf_av=tcf_av)
+    p2p_coefs = p2p_systraj.coefs
     assert p2p_inform in [0, 1]
 
     # Get the coefficients into a more useful form
@@ -491,12 +498,13 @@ def test_2d_curvature_corridor_multiple():
         [initial_val, final_val, np.array([1e10, corridor_radius])])
 
     # Re-solve the problem with initial and final cost
-    nltcf_coefs, nltcf_cost, nltcf_inform = ntg.ntg(
+    nltcf_systraj, nltcf_cost, nltcf_inform = ntg.ntg(
         nout, bps, ninterv, order, mult, flaglen,
         lic=state_constraint_matrix, lfc=state_constraint_matrix,
         nltcf=c_nltcf_corridor, nltcf_av=nltcf_av, nltcf_num=2,
         lowerb=lowerb, upperb=upperb,
         tcf=c_tcf, tcf_av=tcf_av, verbose=True)
+    nltcf_coefs = nltcf_systraj.coefs
     assert nltcf_inform in [0, 1]
 
     # Get the coefficients into a more useful form
