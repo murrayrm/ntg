@@ -44,22 +44,207 @@ def npsol_option(s):
 def ntg(
     nout,                       # number of outputs
     breakpoints,                # break points
-    nintervals,                 # number of intervals
-    order,                      # order of polynomial (for each output)
-    multiplicity,               # multiplicity at knot points (for each output)
-    maxderivs,                  # max number of derivatives (for each output)
+    nintervals=None,            # number of intervals
+    order=None,                 # order of polynomial (for each output)
+    multiplicity=None,          # multiplicity at knot points (for each output)
+    maxderivs=None,             # max number of derivatives (for each output)
     knotpoints=None,            # knot points
-    initialguess=None,          # initial guess for coefficients
+    icf=None, icf_av=None,      # initial cost function, active vars
+    tcf=None, tcf_av=None,      # trajectory cost function, active vars
+    fcf=None, fcf_av=None,      # final cost function, active vars
+    initial_guess=None,         # initial guess for coefficients
+    initial_constraints=None,    # initial constraints (scipy.optimize form)
+    trajectory_constraints=None, # trajectroy constraints (scipy.optimize form)
+    final_constraints=None,      # initial constraints (scipy.optimize form)
     lic=None, ltc=None, lfc=None,       # linear init, traj, final constraints
     nlicf=None, nlicf_num=None, nlicf_av=None, # NL initial constraints
     nltcf=None, nltcf_num=None, nltcf_av=None, # NL trajectory constraints
     nlfcf=None, nlfcf_num=None, nlfcf_av=None, # NL final constraints
     lowerb=None, upperb=None,   # upper and lower bounds for constraints
-    icf=None, icf_av=None,      # initial cost function, active vars
-    tcf=None, tcf_av=None,      # trajectory cost function, active vars
-    fcf=None, fcf_av=None,      # final cost function, active vars
-    verbose=False               # turn on verbose messages
+    verbose=False,              # turn on verbose messages
+    **kwargs                    # additional arguments
 ):
+    # Process keywords
+    def process_alt_kwargs(kwargs, primary, other, name):
+        for kw in other:
+            if kw in kwargs:
+                if primary is not None:
+                    raise TypeError(f"redundant keywords: {primary}, {kw}")
+                primary = kwargs.pop(kw)
+                name = kw
+        return primary
+
+    # Alternative versions of keywords (for python-control compatibility)
+    icf = process_alt_kwargs(kwargs, icf, ['initial_cost'], 'icf')
+    icf_av = process_alt_kwargs(
+        kwargs, icf_av, ['initial_cost_actvars'], 'icf_av')
+    tcf = process_alt_kwargs(kwargs, tcf, ['cost', 'trajectory_cost'], 'tcf')
+    tcf_av = process_alt_kwargs(
+        kwargs, tcf_av, ['cost_actvars', 'trajectory_cost_actvars'], 'tcf_av')
+    fcf = process_alt_kwargs(kwargs, fcf, ['final_cost', 'terminal_cost'], 'fcf')
+    fcf_av = process_alt_kwargs(
+        kwargs, fcf_av,
+        ['final_cost_actvars', 'terminal_cost_actvars'], 'fcf_av')
+
+    # High-level keywords (integration with low-level keywords handled below)
+    initial_constraints = kwargs.pop('initial_constraints', None)
+    initial_condition = kwargs.pop('X0', kwargs.pop('initial_condition', None))
+    trajectory_constraints = kwargs.pop('trajectory_constraints', None)
+    final_constraints = kwargs.pop('final_constraints', None)
+
+    # Make sure there were no additional keyword arguments
+    if kwargs:
+        raise TypeError("unrecognized keyword arguments", kwargs)
+
+    #
+    # Process B-spline parameters
+    #
+    # B-splines are characterized by a set of intervals separated by knot
+    # points.  One each interval we have a polynomial of a certain order and
+    # the spline is continuous up to a given multiplicity at interior knot
+    # points.  The code in this section allows some flexibility in the way
+    # that all of this information is supplied, including using scalar
+    # values for parameters (which are then broadcast to each output) and
+    # inferring values and dimensions from other information, when possible.
+    #
+
+    # Utility function for broadcasting spline parameters (order, maxderiv,
+    # ninterv, mult)
+    def process_spline_parameters(
+            values, nout, allowed_types, minimum=0, default=None, name='unknown'):
+        # Preprosing
+        if values is None and default is None:
+            return None
+        elif values is None:
+            values = default
+        elif isinstance(values, np.ndarray):
+            # Convert ndarray to list
+            values = values.tolist()
+
+        # Figure out what type of object we were passed
+        if isinstance(values, allowed_types):
+            # Single number of an allowed type => broadcast to list
+            values = [values for i in range(nout)]
+        elif all([isinstance(v, allowed_types) for v in values]):
+            # List of values => make sure it is the right size
+            if len(values) != nout:
+                raise ValueError(f"length of '{name}' does not match nout")
+        else:
+            raise ValueError(f"could not parse '{name}' keyword")
+
+        # Check to make sure the values are OK
+        if values is not None and any([val < minimum for val in values]):
+            raise ValueError(
+                f"invalid value for {name}; must be at least {minimum}")
+
+        if verbose:
+            print(f"{name} = {values}")
+        return values
+
+    #
+    # Number of intervals
+    #
+    # We start by processing the number of intervals, if present, to make
+    # sure these are ready for processing of knot points (next).
+    #
+    nintervals = process_spline_parameters(
+        nintervals, nout, (int), name='nintervals', minimum=1)
+
+    #
+    # Break points
+    #
+    # Process the breakpoints next since this will tell us what the time
+    # points are that we need to define things over.
+    #
+    breakpoints = np.atleast_1d(breakpoints)
+    if breakpoints.ndim != 1:
+        raise ValueError("breakpoints must be a 1D array")
+
+    #
+    # Knot points
+    #
+    # If given, the knot points specify the points in time that separate the
+    # intervals of the B-spline.  They can be the same for each output or
+    # different for each output, and there can be a different number of
+    # intervals for each output.  If the knotpoints are not given, then they
+    # will be inferred from the number of intervals (nintervals) and equally
+    # spaced.  If the knotpoints are given, this is used to determine the
+    # number of intervals (w/ no error if a consistent nintervals argument
+    # is also supplied).
+    #
+    if knotpoints:
+        # Convert the argument to a list, to allow for output-specific intervals
+        if isinstance(knotpoints, np.ndarray):
+            knotpoints = knotpoints.tolist()
+        else:
+            # Convert to a list (eg, versus a tuple)
+            knotpoints = list(knotpoints)
+
+        # Figure out if the list is 1D or 2D (and convert to 2D)
+        if all([isinstance(pt, (int, long, float)) for pt in knotpoints]):
+            # 1D list of knotpoints => convert to 2D
+            knotpoints = [knotpoints for i in range(nout)]
+        elif not all([isinstance(pt, list) for pt in knotpoints]):
+            raise ValueError(
+                "can't parse knot points (should be 1D or 2D array/list)")
+
+        # Make sure the list makes sense
+        if len(knotpoints) != nout:
+            raise ValueError("number of knot point vectors must equal nout")
+
+        print("knot points = ", knotpoints)
+        print("nintervals = ", nintervals)
+
+        # Process knot points for each output (and convert to 1D ndarrays)
+        for i, knot in enumerate(knotpoints):
+            knot = np.atleast_1d(knot)
+            if knot.ndim > 1:
+                raise ValueError("knot points should be 1D array for each output")
+            if nintervals and knot.size != nintervals[i] + 1:
+                raise ValueError(
+                    f"for output {i}, number of knot points ({knot.size}) and "
+                    f"nintervals ({nintervals[i]}) are inconsistent")
+            knotpoints[i] = knot
+
+        # Set up nintervals to match knot points
+        if nintervals is None:
+            nintervals = [knot.size -1 for knot in knotpoints]
+
+    else:
+        # If nintervals was not specified, use one interval per output
+        if nintervals is None:
+            nintervals = np.ones(nout, dtype=int).tolist()
+
+        # Set up equally space knot points for reach output
+        knotpoints = [np.linspace(0, breakpoints[-1], nintervals[out] + 1)
+                 for out in range(nout)]
+
+    # Make sure break point values make sense
+    if any([knot[0] > breakpoints[0] or knot[-1] < breakpoints[-1]
+            for knot in knotpoints]):
+        raise ValueError(
+            "initial and final knot points must be outside of break point range")
+
+    # Maximum number of derivatives for each flat output
+    maxderivs = process_spline_parameters(
+        maxderivs, nout, (int), name='maxderivs', minimum=0)
+    if maxderivs is None:
+        raise ValueError("missing value(s) for maxderivs")
+
+    # Order of polynomial; set default to maximum number of derivativs
+    order = process_spline_parameters(
+        order, nout, (int), name='order', minimum=1,
+        default=[derivs + 1 for derivs in maxderivs])
+
+    # Multiplicity at knotpoints; set default to maximum number of derives
+    multiplicity = process_spline_parameters(
+        multiplicity, nout, (int), name='multiplicity',
+        minimum=1, default=maxderivs)
+
+    #
+    # Create the C data structures needed for ntg()
+    #
+
     # Utility functions to check dimensions and set up C arrays
     def init_c_array_1d(array, size, type):
         array = np.atleast_1d(array)
@@ -73,16 +258,8 @@ def ntg(
     cdef int [:] c_maxderiv = init_c_array_1d(maxderivs, nout, np.intc)
 
     # Breakpoints
-    breakpoints = np.atleast_1d(breakpoints)
-    assert breakpoints.ndim == 1
     cdef int nbps = breakpoints.shape[0]
     cdef double [:] c_bps = init_c_array_1d(breakpoints, nbps, np.double)
-
-    # Knot points (for each output)
-    if knotpoints is None:
-        # Set up equally space knot points for reach output
-        knotpoints = [np.linspace(0, breakpoints[-1], nintervals[out] + 1)
-                 for out in range(nout)]
 
     cdef double **c_knots = <double **> malloc(nout * sizeof(double *))
     for out in range(nout):
@@ -96,8 +273,8 @@ def ntg(
     for i in range(nout):
         ncoef += nintervals[i] * (order[i] - multiplicity[i]) + multiplicity[i]
 
-    if initialguess is not None:
-        coefs = np.atleast_1d(initialguess)
+    if initial_guess is not None:
+        coefs = np.atleast_1d(initial_guess)
         assert coefs.ndim == 1
         assert coefs.size == ncoef
     else:
