@@ -155,8 +155,8 @@ void ntg(
   GZ = calloc(Gccolloc->nZ, sizeof(double));
 
   /*
-   * Store all of the arguments so that we can acccess them in the
-   * callback functions (below)
+   * Store all of the arguments as global variables so that we can acccess
+   * them in the callback functions (below).
    */
 
   Gbps = bps;

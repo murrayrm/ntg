@@ -12,11 +12,7 @@ def test_uniform_flag():
     # System setup
     nout = 2                    # 2 flat outputs
     flaglen = [3, 3]            # 2 derivatives in each output
-
-    # Spline definition (default values)
-    ninterv = [2, 3]
-    mult = [3, 4]
-    order = [6, 7]
+    sys = ntg.FlatSystem(nout, flaglen)
 
     # Initial and final conditions
     z0 = np.array([[0., 8., 0.], [-2., 0., 0.]])
@@ -25,6 +21,12 @@ def test_uniform_flag():
     # Breakpoints: linearly spaced
     Tf = 5
     bps = np.linspace(0, Tf, 30)
+
+    # Spline definition (default values)
+    knots = [0, Tf/2, Tf]
+    smooth = [3, 4]
+    order = [6, 7]
+    basis = ntg.BSplineFamily(nout, knots, order, smooth)
 
     # Cost function: curvature
     @numba.cfunc(ntg.numba_trajectory_cost_signature)
@@ -51,11 +53,11 @@ def test_uniform_flag():
         state_constraint_matrix, final_val, final_val)
 
     # Compute the optimal trajectory
-    systraj, cost, inform = ntg.ntg(
-        nout, bps, ninterv, order, mult, flaglen,
+    systraj, cost, inform = ntg.solve_flat_ocp(
+        sys, bps, basis,
         initial_constraints=initial_constraints,
         final_constraints=final_constraints,
-        tcf=c_tcf, tcf_av=tcf_av)
+        trajectory_cost=c_tcf, trajectory_cost_av=tcf_av)
 
     # Make sure the optimization succeeded
     assert inform == 0 or inform == 1
@@ -64,20 +66,20 @@ def test_uniform_flag():
     coefs = systraj.coefs
     coef_list = []
     offset = 0
+    ninterv = len(knots) - 1
     for i in range(nout):
-        ncoefs = ninterv[i] * (order[i] - mult[i]) + mult[i]
+        ncoefs = ninterv * (order[i] - smooth[i]) + smooth[i]
         coef_list.append(coefs[offset:offset + ncoefs])
         offset += ncoefs
 
     # Get the full trajectory at a set of time points
-    knots = [np.linspace(0, Tf, ninterv[i] + 1) for i in range(nout)]
     timepts = np.linspace(0, Tf, 100)
     ztraj = np.empty((nout, max(flaglen), timepts.size))
     ztraj.fill(np.nan)          # keep track of unused entries
     for i in range(nout):
         ztraj[i, 0:flaglen[i]] = np.array([
-            ntg.spline_interp(t, knots[i], ninterv[i], coef_list[i],
-                              order[i], mult[i], flaglen[i])
+            ntg.spline_interp(t, np.array(knots), ninterv, coef_list[i],
+                              order[i], smooth[i], flaglen[i])
             for t in timepts]).transpose()
 
     # Compare to system trajectory
@@ -87,11 +89,7 @@ def test_nonuniform_flag():
     # System setup
     nout = 2                    # 2 flat outputs
     flaglen = [2, 3]            # different numbers of derivatives
-
-    # Spline definition (default values)
-    ninterv = [2, 2]
-    mult = [3, 3]
-    order = [6, 6]
+    sys = ntg.FlatSystem(nout, flaglen)
 
     # Initial and final conditions
     z0 = np.array([0., 8., -2., 0., 0.])
@@ -100,6 +98,12 @@ def test_nonuniform_flag():
     # Breakpoints: linearly spaced
     Tf = 5
     bps = np.linspace(0, Tf, 30)
+
+    # Spline definition (default values)
+    knots = [0, Tf/2, Tf]
+    smooth = [3, 3]
+    order = [6, 6]
+    basis = ntg.BSplineFamily(nout, knots, order, smooth)
 
     # Cost function: inputs at end of each flag
     @numba.cfunc(ntg.numba_trajectory_cost_signature)
@@ -118,11 +122,11 @@ def test_nonuniform_flag():
     final_constraints = sp.optimize.LinearConstraint(np.eye(5), zf, zf)
 
     # Compute the optimal trajectory
-    systraj, cost, inform = ntg.ntg(
-        nout, bps, ninterv, order, mult, flaglen,
+    systraj, cost, inform = ntg.solve_flat_ocp(
+        sys, bps, basis,
         initial_constraints=initial_constraints,
         final_constraints=final_constraints,
-        tcf=c_tcf, tcf_av=tcf_av, verbose=True)
+        trajectory_cost=c_tcf, trajectory_cost_av=tcf_av, verbose=True)
 
     # Make sure the optimization succeeded
     assert inform == 0 or inform == 1
@@ -131,20 +135,21 @@ def test_nonuniform_flag():
     coefs = systraj.coefs
     coef_list = []
     offset = 0
+    ninterv = len(knots) - 1
     for i in range(nout):
-        ncoefs = ninterv[i] * (order[i] - mult[i]) + mult[i]
+        ncoefs = ninterv * (order[i] - smooth[i]) + smooth[i]
         coef_list.append(coefs[offset:offset + ncoefs])
         offset += ncoefs
 
     # Get the full trajectory at a set of time points
-    knots = [np.linspace(0, Tf, ninterv[i] + 1) for i in range(nout)]
+    knots = [np.linspace(0, Tf, ninterv + 1) for i in range(nout)]
     timepts = np.linspace(0, Tf, 100)
     ztraj = np.empty((nout, max(flaglen), timepts.size))
     ztraj.fill(np.nan)          # keep track of unused entries
     for i in range(nout):
         ztraj[i, 0:flaglen[i]] = np.array([
-            ntg.spline_interp(t, knots[i], ninterv[i], coef_list[i],
-                              order[i], mult[i], flaglen[i])
+            ntg.spline_interp(t, knots[i], ninterv, coef_list[i],
+                              order[i], smooth[i], flaglen[i])
             for t in timepts]).transpose()
 
     # Compare to system trajectory

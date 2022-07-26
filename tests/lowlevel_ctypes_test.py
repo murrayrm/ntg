@@ -38,7 +38,7 @@ def test_2d_curvature_p2p(zf_0, zf_f, Tf, ninterv, mult, order):
     bounds = np.hstack([initial_val, final_val])
 
     # Compute the optimal trajectory
-    systraj, cost, inform = ntg.ntg(
+    systraj, cost, inform = ntg.call_ntg(
         nout, bps, ninterv, order, mult, flaglen,
         lic=state_constraint_matrix, lfc=state_constraint_matrix,
         lowerb=bounds, upperb=bounds,
@@ -104,7 +104,7 @@ def test_2d_curvature_ifc_ltc():
     bounds = np.hstack([initial_val, final_val])
 
     # Compute the optimal trajectory
-    p2p_systraj, p2p_cost, p2p_inform = ntg.ntg(
+    p2p_systraj, p2p_cost, p2p_inform = ntg.call_ntg(
         nout, bps, ninterv, order, mult, flaglen,
         lic=state_constraint_matrix, lfc=state_constraint_matrix,
         lowerb=bounds, upperb=bounds,
@@ -122,7 +122,7 @@ def test_2d_curvature_ifc_ltc():
     fcf_av = [ntg.actvar(i, j) for i in range(nout) for j in range(flaglen[i])]
 
     # Re-solve the problem with initial and final cost
-    ifc_systraj, ifc_cost, ifc_inform = ntg.ntg(
+    ifc_systraj, ifc_cost, ifc_inform = ntg.call_ntg(
         nout, bps, ninterv, order, mult, flaglen,
         icf=c_icf, icf_av=icf_av,
         fcf=c_fcf, fcf_av=fcf_av,
@@ -191,7 +191,7 @@ def test_2d_curvature_ifc_ltc():
     ltc_upperb = np.hstack([initial_val, input_constraint_upperb, final_val])
 
     # Resolve with constrainted inputs
-    ltc_systraj, ltc_cost, ltc_inform = ntg.ntg(
+    ltc_systraj, ltc_cost, ltc_inform = ntg.call_ntg(
         nout, bps, ninterv, order, mult, flaglen,
         lic=state_constraint_matrix,
         ltc=input_constraint_matrix,

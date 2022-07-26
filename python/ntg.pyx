@@ -20,28 +20,189 @@ from warnings import warn
 from libc.stdlib cimport malloc, calloc, free
 cimport ntg as ntg
 
-# Define a class to define active variables
-class actvar(object):
-    def __init__(self, output, deriv):
-        self.output = output
-        self.deriv = deriv
 
-# Print the NTG banner
-def print_banner():
-    ntg.printNTGBanner()
+class FlatSystem:
+    """FlatSystem(nout, flaglen)
 
-# Define NPSOL options
-def npsol_option(s):
-    b = s.encode('utf-8')
-    cdef char *c_string = b
-    ntg.npsoloption(c_string)
+    Class representing a flat system.
 
-#
-# SystemTrajectory class
-#
-# This class is used to return a system trajectory, modeled on the
-# python.flatsys class of the same name.
-#
+    This class is used to represent a differentially flat system.
+
+    Attributes
+    ----------
+    nout : int
+        Number of flat outputs.
+
+    flaglen : 1D array of int
+        Length of the flag for each output (number of derivatives + 1).
+
+    """
+    def __init__(self, *args):
+        """FlatSystem(nout, flaglen)
+
+        Create an object representing a flat system.
+
+        Parameters
+        ----------
+        nout : int, optional
+            Number of outputs of the flat system.  If not specified, determined
+            based on the number of entries in flaglen (must be a list).
+
+        flaglen : int or 1D-array
+            Length of the flat flag for each output.  If nout is given and
+            flaglen is an integer, then each output is assumed to have the
+            given length.  If a list is given, then each entry indicates the
+            length of the flat for that output.
+
+        Returns
+        -------
+        sys : FlatSystem
+            Object representing the flat system.
+
+        """
+        if len(args) == 1 and isinstance(args[0], list):
+            self.nout = len(args[0])
+            self.flaglen = args[0]
+        elif len(args) == 2 and isinstance(args[0], int) and \
+             isinstance(args[1], (int, list)):
+            self.nout = args[0]
+            if isinstance(args[1], int):
+                self.flaglen = [args[1] for i in range(self.nout)]
+            else:
+                self.flaglen = args[1]
+        else:
+            raise TypeError("invalid flat system specification")
+
+
+class BSplineFamily:
+    """B-spline basis functions.
+
+    This class represents a vector-valued set of B-spline polynomials.
+    B-splines are characterized by a set of intervals separated by knot
+    points.  On each interval we have a polynomial of a certain order and
+    the spline is continuous up to a given number of derivatives at the knot
+    points.
+
+    Attributes
+    ----------
+    nvars : int
+        Dimension of the space in with the B-splines take their values.
+
+    knotpoints : 1D array
+        For each B-spline, the knot points for the B-spline.
+
+    order : list of ints
+        For each B-spline, the order of the Bezier polynomial.
+
+    smoothness : list of ints
+        For each B-spline, the number of derivatives of smoothness at the
+        knot points.
+
+    nintervals : list of ints
+        For each B-spline, the number of intervals (= len(knotpoints) + 1)
+
+    """
+    def __init__(
+        self, nvars, knotpoints, order, smoothness):
+        """Define a set of B-spline polyomials
+
+        Define B-spline polynomials for a set of variables.  B-splines are
+        characterized by a set of intervals separated by knot points.  On
+        each interval we have a polynomial of a certain order and the spline
+        is continuous up to a given smoothness at interior knot points.
+
+        Parameters
+        ----------
+        nvars : int
+            Number of B-splines variables (output dimension).
+
+        knotpoints : 1D array of float
+            For each B-spline variable, the knot points for the B-spline.
+
+        order : list of ints
+            For each B-spline variable, the order of the Bezier polynomial.
+
+        smoothness : list of ints
+            For each B-spline variable, the smoothness at knot points.
+
+        """
+        #
+        # Process knot points
+        #
+        # The knot points for the B-spline.  NTG allows these to be
+        # different for each output variable, but here we assume they are
+        # the same for all outputs (the most common case).
+        #
+
+        knotpoints = np.array(knotpoints, dtype=float)
+        if knotpoints.ndim != 1:
+            raise ValueError("knot points must be convertable to a 1D array")
+        elif knotpoints.size < 2:
+            raise ValueError("knot point vector must have at least 2 values")
+        elif np.any(np.diff(knotpoints) <= 0):
+            raise ValueError("knot points must strictly increasing values")
+
+        #
+        # Process B-spline parameters (order, smoothness)
+        #
+        # B-splines are characterized by a set of intervals separated by
+        # knot points.  On each interval we have a polynomial of a certain
+        # order and the spline is continuous up to a given smoothness at
+        # knot points.  The code in this section allows some flexibility in
+        # the way that all of this information is supplied, including using
+        # scalar values for parameters (which are then broadcast to each
+        # output) and inferring values and dimensions from other
+        # information, when possible.
+        #
+
+        # Utility function for broadcasting spline parameters (order,
+        # ninterv, mult)
+        def process_spline_parameters(
+            values, length, allowed_types, minimum=0,
+            default=None, name='unknown'):
+
+            # Preprocessing
+            if values is None and default is None:
+                return None
+            elif values is None:
+                values = default
+            elif isinstance(values, np.ndarray):
+                # Convert ndarray to list
+                values = values.tolist()
+
+            # Figure out what type of object we were passed
+            if isinstance(values, allowed_types):
+                # Single number of an allowed type => broadcast to list
+                values = [values for i in range(length)]
+            elif all([isinstance(v, allowed_types) for v in values]):
+                # List of values => make sure it is the right size
+                if len(values) != length:
+                    raise ValueError(f"length of '{name}' does not match n")
+            else:
+                raise ValueError(f"could not parse '{name}' keyword")
+
+            # Check to make sure the values are OK
+            if values is not None and any([val < minimum for val in values]):
+                raise ValueError(
+                    f"invalid value for {name}; must be at least {minimum}")
+
+            return values
+
+        # Order of polynomial; set default to maximum number of derivativs
+        order = process_spline_parameters(
+            order, nvars, (int), name='order', minimum=1)
+
+        # Smoothness at knotpoints; set default to maximum number of derivs
+        smoothness = process_spline_parameters(
+            smoothness, nvars, (int), name='smoothness', minimum=1)
+
+        # Store the parameters and process them in call_ntg()
+        self.nvars = nvars
+        self.knotpoints = knotpoints
+        self.order = order
+        self.smoothness = smoothness
+        self.nintervals = knotpoints.size - 1
+
 
 class SystemTrajectory:
     """Class representing a system trajectory.
@@ -50,7 +211,7 @@ class SystemTrajectory:
     (differentially flat) system.  Used by the :func:`~ntg.ntg` function to
     return a trajectory.
 
-    Parameters
+    Attributes
     ----------
     coefs : 1D array
         Flat output coefficient list, represented as a stacked array.
@@ -68,12 +229,12 @@ class SystemTrajectory:
     order : list of ints
         For each flat output, the order of the Bezier polynomial.
 
-    multiplicity : list of ints
-        For each flat output, the multiplicity (smoothness) at the knot points.
+    smoothness : list of ints
+        For each flat output, the smoothness at the knot points.
 
     """
-
-    def __init__(self, coefs, nout, flaglen, knotpoints, order, multiplicity):
+    # TODO: update to accept basis as input
+    def __init__(self, coefs, nout, flaglen, knotpoints, order, smoothness):
         """Initilize a system trajectory object."""
         # Save the elements
         self.coefs = coefs
@@ -81,7 +242,7 @@ class SystemTrajectory:
         self.flaglen = flaglen
         self.knotpoints = knotpoints
         self.order = order
-        self.multiplicity = multiplicity
+        self.smoothness = smoothness
 
         # Keep track of the maximum length of a flag
         self.maxflag = max(flaglen)
@@ -90,14 +251,14 @@ class SystemTrajectory:
         self.coef_offset, self.coef_length, offset = [], [], 0
         for i in range(nout):
             ncoefs = (len(knotpoints[i]) - 1) * \
-                (order[i] - multiplicity[i]) + multiplicity[i]
+                (order[i] - smoothness[i]) + smoothness[i]
             self.coef_offset.append(offset)
             self.coef_length.append(ncoefs)
             offset += ncoefs
 
     # Evaluate the trajectory over a list of time points
     def eval(self, tlist):
-        """Return the state and input for a trajectory at a list of times.
+        """Evalulate the flat flag for a trajectory at a list of times
 
         Evaluate the trajectory at a list of time points, returning the state
         and input vectors for the trajectory:
@@ -126,42 +287,123 @@ class SystemTrajectory:
                 t, self.knotpoints[i], nintervals,
                 self.coefs[self.coef_offset[i]:
                            self.coef_offset[i] + self.coef_length[i]],
-                self.order[i], self.multiplicity[i], self.flaglen[i])
+                self.order[i], self.smoothness[i], self.flaglen[i])
                                  for t in tlist]).transpose()
 
         return zflag
 
+#
+# OptimalControlResult class
+#
+# This class is used to store the result of an optimal control problem for a
+# flat system, modeled on the python.optimal class of the same name.
+#
+
+class OptimalControlResult:
+    """Result from solving an optimal control problem for a flat system
+
+    This class contains the result of solving an optimal control problem for
+    a differentially flat system.
+
+    Attributes
+    ----------
+    systraj : SystemTrajectory
+        The optimal trajectory computed by the solver.
+
+    cost : float
+        Final cost of the return solution.
+
+    inform : int
+        Optimizer status (NPSOL)
+
+    """
+    def __init__(self, systraj, cost, inform):
+        self.systraj = systraj
+        self.cost = cost
+        self.inform = inform
+
+    # Implement iter to allow assigning to a tuple
+    def __iter__(self):
+        return iter((self.systraj, self.cost, self.inform))
+
+# Define a class to define active variables
+class ActiveVariable(object):
+    """Active variable for cost/constraint computation
+
+    This class specifies an active variable used to compute NTG costs or
+    constraints.
+
+    Parameters
+    ----------
+    output : int
+        The output index of the active variable.
+
+    deriv : int
+        The derivative of the active variable.
+
+    """
+    def __init__(self, output, deriv):
+        self.output = output
+        self.deriv = deriv
+actvar = ActiveVariable         # short form
 
 #
-# Main ntg() function
+# High level NTG interface: solve_flat_ocp
 #
-# For now this function looks more or less like the C version of ntg(), but
-# with Python objects as arguments (so we don't have to separately pass
-# arguments) and with keyword arguments for anything that is optional.
+# Simplified interface to specify and solve an optimal control problem for a
+# differentially flat system.  This interface is modeled after the
+# control.flatsys and control.optimal modules in python-control.
 #
-def ntg(
-    nout,                       # number of outputs
-    breakpoints,                # break points
-    nintervals=None,            # number of intervals
-    order=None,                 # order of polynomial (for each output)
-    multiplicity=None,          # multiplicity at knot points (for each output)
-    flaglen=None,               # max number of derivatives + 1 (for each output)
-    knotpoints=None,            # knot points for each output
-    icf=None, icf_av=None,      # initial cost function, active vars
-    tcf=None, tcf_av=None,      # trajectory cost function, active vars
-    fcf=None, fcf_av=None,      # final cost function, active vars
-    initial_guess=None,         # initial guess for coefficients
-    initial_constraints=None,    # initial constraints (scipy.optimize form)
-    trajectory_constraints=None, # trajectroy constraints (scipy.optimize form)
-    final_constraints=None,      # initial constraints (scipy.optimize form)
-    lic=None, ltc=None, lfc=None,       # linear init, traj, final constraints
-    nlicf=None, nlicf_num=None, nlicf_av=None, # NL initial constraints
-    nltcf=None, nltcf_num=None, nltcf_av=None, # NL trajectory constraints
-    nlfcf=None, nlfcf_num=None, nlfcf_av=None, # NL final constraints
-    lowerb=None, upperb=None,   # upper and lower bounds for constraints
-    verbose=False,              # turn on verbose messages
-    **kwargs                    # additional arguments
+def solve_flat_ocp(
+    sys,                   # flat system
+    breakpoints,           # break points
+    basis,                 # (B-spline) basis function description
+    initial_cost=None,          # initial cost
+    initial_cost_av=None,       # initial cost active variables
+    trajectory_cost=None,       # cost along the trajectory
+    trajectory_cost_av=None,    # trajectory cost active variables
+    final_cost=None,            # final cost
+    final_cost_av=None,         # final cost active variables
+    initial_constraints=None,       # initial constraints
+    initial_constraint_av=None,     # initial constraint active variables
+    trajectory_constraints=None,    # trajectory constraints
+    trajectory_constraint_av=None,  # trajectory constraint active variables
+    final_constraints=None,         # final constraints
+    final_constraint_av=None,       # final constraint active variables
+    verbose=False,         # turn on verbose message
+    **kwargs,              # allow some alternative keywords
 ):
+    """Constrained, optimal trajectory generation
+
+    Compute an optimal trajectory for a differentially flat system with
+    initial, trajectory, and final costs and constraints.
+
+    Parameters
+    ----------
+    sys : FlatSystem
+        Flat system description.
+
+    breakpoints : 1D array-like
+        Array of times at which constraints should be evaluated and integrated
+        costs are computed.
+
+    basis : BSplineFamily
+        Description of the B-spline basis to use for flat output trajectories.
+
+    Returns
+    -------
+    result : :class:`~ntg.OptimalControlResult` object
+        The result of the optimal control problem, including the system
+        trajectory (`result.systraj`), optimal cost (`result.cost`), and
+        optimizer status (`result.inform`).
+
+    """
+    # Make sure basis is consistent system
+    if sys.nout != basis.nvars:
+        raise ValueError(
+            f"system size ({sys.nout}) and basis size "
+            f"({basis.nvars}) must match")
+
     # Process keywords
     def process_alt_kwargs(kwargs, primary, other, name):
         for kw in other:
@@ -172,211 +414,56 @@ def ntg(
                 name = kw
         return primary
 
-    # Alternative versions of keywords (for python-control compatibility)
-    icf = process_alt_kwargs(kwargs, icf, ['initial_cost'], 'icf')
-    icf_av = process_alt_kwargs(
-        kwargs, icf_av, ['initial_cost_actvars'], 'icf_av')
-    tcf = process_alt_kwargs(kwargs, tcf, ['cost', 'trajectory_cost'], 'tcf')
-    tcf_av = process_alt_kwargs(
-        kwargs, tcf_av, ['cost_actvars', 'trajectory_cost_actvars'], 'tcf_av')
-    fcf = process_alt_kwargs(kwargs, fcf, ['final_cost', 'terminal_cost'], 'fcf')
-    fcf_av = process_alt_kwargs(
-        kwargs, fcf_av,
-        ['final_cost_actvars', 'terminal_cost_actvars'], 'fcf_av')
-    nlicf_av = process_alt_kwargs(
-        kwargs, nlicf_av, ['initial_constraint_actvars'], 'nlicf_av')
-    nltcf_av = process_alt_kwargs(
-        kwargs, nltcf_av, ['trajectory_constraint_actvars'], 'nltcf_av')
-    nlfcf_av = process_alt_kwargs(
-        kwargs, nlfcf_av, ['final_constraint_actvars'], 'nlfcf_av')
+    trajectory_cost = process_alt_kwargs(
+        kwargs, trajectory_cost, ['cost'], 'trajectory_cost')
+    trajectory_cost_av = process_alt_kwargs(
+        kwargs, trajectory_cost_av, ['cost_av'], 'trajectory_cost_av')
 
     # Make sure there were no additional keyword arguments
     if kwargs:
         raise TypeError("unrecognized keyword arguments", kwargs)
 
     #
-    # Process B-spline parameters
-    #
-    # B-splines are characterized by a set of intervals separated by knot
-    # points.  One each interval we have a polynomial of a certain order and
-    # the spline is continuous up to a given multiplicity at interior knot
-    # points.  The code in this section allows some flexibility in the way
-    # that all of this information is supplied, including using scalar
-    # values for parameters (which are then broadcast to each output) and
-    # inferring values and dimensions from other information, when possible.
-    #
-
-    # Utility function for broadcasting spline parameters (order, flaglen,
-    # ninterv, mult)
-    def process_spline_parameters(
-            values, nout, allowed_types, minimum=0, default=None, name='unknown'):
-        # Preprosing
-        if values is None and default is None:
-            return None
-        elif values is None:
-            values = default
-        elif isinstance(values, np.ndarray):
-            # Convert ndarray to list
-            values = values.tolist()
-
-        # Figure out what type of object we were passed
-        if isinstance(values, allowed_types):
-            # Single number of an allowed type => broadcast to list
-            values = [values for i in range(nout)]
-        elif all([isinstance(v, allowed_types) for v in values]):
-            # List of values => make sure it is the right size
-            if len(values) != nout:
-                raise ValueError(f"length of '{name}' does not match nout")
-        else:
-            raise ValueError(f"could not parse '{name}' keyword")
-
-        # Check to make sure the values are OK
-        if values is not None and any([val < minimum for val in values]):
-            raise ValueError(
-                f"invalid value for {name}; must be at least {minimum}")
-
-        if verbose:
-            print(f"{name} = {values}")
-        return values
-
-    #
-    # Number of intervals
-    #
-    # We start by processing the number of intervals, if present, to make
-    # sure these are ready for processing of knot points (next).
-    #
-    nintervals = process_spline_parameters(
-        nintervals, nout, (int), name='nintervals', minimum=1)
-
-    #
     # Break points
     #
-    # Process the breakpoints next since this will tell us what the time
+    # Process the break points next since this will tell us what the time
     # points are that we need to define things over.
     #
     breakpoints = np.atleast_1d(breakpoints)
     if breakpoints.ndim != 1:
         raise ValueError("breakpoints must be a 1D array")
-
-    #
-    # Knot points
-    #
-    # If given, the knot points specify the points in time that separate the
-    # intervals of the B-spline.  They can be the same for each output or
-    # different for each output, and there can be a different number of
-    # intervals for each output.  If the knotpoints are not given, then they
-    # will be inferred from the number of intervals (nintervals) and equally
-    # spaced.  If the knotpoints are given, this is used to determine the
-    # number of intervals (w/ no error if a consistent nintervals argument
-    # is also supplied).
-    #
-    if knotpoints:
-        # Convert the argument to a list, to allow for output-specific intervals
-        if isinstance(knotpoints, np.ndarray):
-            knotpoints = knotpoints.tolist()
-        else:
-            # Convert to a list (eg, versus a tuple)
-            knotpoints = list(knotpoints)
-
-        # Figure out if the list is 1D or 2D (and convert to 2D)
-        if all([isinstance(pt, (int, long, float)) for pt in knotpoints]):
-            # 1D list of knotpoints => convert to 2D
-            knotpoints = [knotpoints for i in range(nout)]
-        elif not all([isinstance(pt, list) for pt in knotpoints]):
-            raise ValueError(
-                "can't parse knot points (should be 1D or 2D array/list)")
-
-        # Make sure the list makes sense
-        if len(knotpoints) != nout:
-            raise ValueError("number of knot point vectors must equal nout")
-
-        print("knot points = ", knotpoints)
-        print("nintervals = ", nintervals)
-
-        # Process knot points for each output (and convert to 1D ndarrays)
-        for i, knot in enumerate(knotpoints):
-            knot = np.atleast_1d(knot)
-            if knot.ndim > 1:
-                raise ValueError("knot points should be 1D array for each output")
-            if nintervals and knot.size != nintervals[i] + 1:
-                raise ValueError(
-                    f"for output {i}, number of knot points ({knot.size}) and "
-                    f"nintervals ({nintervals[i]}) are inconsistent")
-            knotpoints[i] = knot
-
-        # Set up nintervals to match knot points
-        if nintervals is None:
-            nintervals = [knot.size -1 for knot in knotpoints]
-
-    else:
-        # If nintervals was not specified, use one interval per output
-        if nintervals is None:
-            nintervals = np.ones(nout, dtype=int).tolist()
-
-        # Set up equally space knot points for reach output
-        knotpoints = [np.linspace(0, breakpoints[-1], nintervals[out] + 1)
-                 for out in range(nout)]
-
-    # Make sure break point values make sense
-    if any([knot[0] > breakpoints[0] or knot[-1] < breakpoints[-1]
-            for knot in knotpoints]):
-        raise ValueError(
-            "initial and final knot points must be outside of break point range")
-
-    # Maximum number of derivatives for each flat output
-    flaglen = process_spline_parameters(
-        flaglen, nout, (int), name='flaglen', minimum=0)
-    if flaglen is None:
-        raise ValueError("missing value(s) for flaglen")
-
-    # Order of polynomial; set default to maximum number of derivativs
-    order = process_spline_parameters(
-        order, nout, (int), name='order', minimum=1,
-        default=[derivs + 1 for derivs in flaglen])
-
-    # Multiplicity at knotpoints; set default to maximum number of derives
-    multiplicity = process_spline_parameters(
-        multiplicity, nout, (int), name='multiplicity',
-        minimum=1, default=flaglen)
+    elif np.any(np.diff(breakpoints) <= 0):
+        raise ValueError("breakpoints must be strictly increasing")
 
     #
     # Process constraints
     #
-    # There are currently two ways to specify constraints: directly, using
-    # lic, ltc, and lfc for linear constraints and nlicf, nltcf, and nlfcf
-    # for nonlinear constraints (with lowerb and upperb set appropriately)
-    # or via the initial_constraints, trajectory_constraints, and
-    # final_constraints keywords, which use scipy.optimal's
+    # There are currently two (incompatible) ways to specify constraints:
+    # directly, using lic, ltc, and lfc for linear constraints and nlicf,
+    # nltcf, and nlfcf for nonlinear constraints (with lowerb and upperb set
+    # appropriately) or via the initial_constraints, trajectory_constraints,
+    # and final_constraints keywords, which use scipy.optimal's
     # LinearConstraints and NonlinearConstraints classes.
-    #
-    # These two methods are currently incompatible.
     #
     # This section of the code parses the initial_constraints,
     # trajectory_constraints, and final_constraints keywords, which is the
-    # preferred (and easier) way to specify constraints.
+    # preferred (and easier) way to specify constraints.  If constraints
+    # specified using nlicf, nltcf, and nlfcf instead, these are passed
+    # through unchanged and converted directly to C data structures below.
     #
 
-    # Make sure we aren't mixing up constraint types
-    if lowerb is not None or upperb is not None:
-        for ctype, name in zip(
-                [initial_constraints, trajectory_constraints, final_constraints],
-                ['initial', 'trajectory', 'final']):
-            if ctype is not None:
-                raise TypeError(
-                    f"invalid mixture of {name} constraint types detected")
-
     # Figure out the dimension of the flat flag
-    zflag_size = sum([flaglen[i] for i in range(nout)])
+    zflag_size = sum([sys.flaglen[i] for i in range(sys.nout)])
 
     # Initialize linear constraint matrices and bounds (if needed)
-    # (if low-level interface is used; these just convert to ndarrays)
-    lic = np.empty((0, zflag_size)) if lic is None else np.atleast_2d(lic)
-    ltc = np.empty((0, zflag_size)) if ltc is None else np.atleast_2d(ltc)
-    lfc = np.empty((0, zflag_size)) if lfc is None else np.atleast_2d(lfc)
-    lowerb = np.empty(0) if lowerb is None else np.atleast_1d(lowerb)
-    upperb = np.empty(0) if upperb is None else np.atleast_1d(upperb)
+    lic = np.empty((0, zflag_size))
+    ltc = np.empty((0, zflag_size))
+    lfc = np.empty((0, zflag_size))
+    lowerb = np.empty(0)
+    upperb = np.empty(0)
 
     # Utility function to process linear constraints
+    # TODO: look at simplifying since Amat and lower/upper start empty??
     def process_linear_constraints(
             constraint_list, Amat, lb, ub, name='unknown'):
         if constraint_list is None:
@@ -416,6 +503,7 @@ def ntg(
         final_constraints, lfc, lowerb, upperb, name='final')
 
     # Utility function to process nonlinear constraints
+    # TODO: simplify based on the lack of lower-level functionality
     def process_nonlinear_constraints(
             constraint_list, func, nconstraints, lb, ub, name='unknown'):
         if constraint_list is None:
@@ -468,14 +556,14 @@ def ntg(
 
         return func, nconstraints, lb, ub
 
-    # Process nonlinear constraints (does nothing if low-level interface is used)
+    # Process nonlinear constraints
     nlicf, nlicf_num, lowerb, upperb = process_nonlinear_constraints(
-        initial_constraints, nlicf, nlicf_num, lowerb, upperb, name='initial')
+        initial_constraints, None, None, lowerb, upperb, name='initial')
     nltcf, nltcf_num, lowerb, upperb = process_nonlinear_constraints(
-        trajectory_constraints, nltcf, nltcf_num, lowerb, upperb,
+        trajectory_constraints, None, None, lowerb, upperb,
         name='trajectory')
     nlfcf, nlfcf_num, lowerb, upperb = process_nonlinear_constraints(
-        final_constraints, nlfcf, nlfcf_num, lowerb, upperb, name='final')
+        final_constraints, None, None, lowerb, upperb, name='final')
 
     # Print the shapes of things if we need to know what is happening
     if verbose:
@@ -485,8 +573,86 @@ def ntg(
         print(f"lowerb.shape = {lowerb.shape}")
         print(f"upperb.shape = {upperb.shape}")
 
+    # Call NTG
+    systraj, cost, inform = call_ntg(
+        sys.nout, breakpoints,
+        flaglen=sys.flaglen, smoothness=basis.smoothness, order=basis.order,
+        knotpoints=[basis.knotpoints for i in range(sys.nout)],
+        nintervals=[basis.nintervals for i in range(sys.nout)],
+        icf=initial_cost, icf_av=initial_cost_av,
+        tcf=trajectory_cost, tcf_av=trajectory_cost_av,
+        fcf=final_cost, fcf_av=final_cost_av,
+        lic=lic, ltc=ltc, lfc=lfc, lowerb=lowerb, upperb=upperb,
+        nlicf=nlicf, nlicf_num=nlicf_num, nlicf_av=initial_constraint_av,
+        nltcf=nltcf, nltcf_num=nltcf_num, nltcf_av=trajectory_constraint_av,
+        nlfcf=nlfcf, nlfcf_num=nlfcf_num, nlfcf_av=final_constraint_av,
+        verbose=verbose)
+    return OptimalControlResult(systraj, cost, inform)
+
+
+#
+# Main ntg() function
+#
+# For now this function looks more or less like the C version of ntg(), but
+# with Python objects as arguments (so we don't have to separately pass
+# arguments) and with keyword arguments for anything that is optional.
+#
+def call_ntg(
+    nout,                       # number of outputs
+    breakpoints,                # break points
+    nintervals,                 # number of intervals
+    order,                      # order of polynomial (for each output)
+    smoothness,                 # smoothness at knot points (for each output)
+    flaglen,                    # max number of derivs + 1 (for each output)
+    knotpoints=None,            # knot points for each output
+    icf=None, icf_av=None,      # initial cost function, active vars
+    tcf=None, tcf_av=None,      # trajectory cost function, active vars
+    fcf=None, fcf_av=None,      # final cost function, active vars
+    initial_guess=None,         # initial guess for coefficients
+    lic=None, ltc=None, lfc=None,       # linear init, traj, final constraints
+    nlicf=None, nlicf_num=None, nlicf_av=None, # NL initial constraints
+    nltcf=None, nltcf_num=None, nltcf_av=None, # NL trajectory constraints
+    nlfcf=None, nlfcf_num=None, nlfcf_av=None, # NL final constraints
+    lowerb=None, upperb=None,   # upper and lower bounds for constraints
+    verbose=False,              # turn on verbose messages
+    **kwargs                    # additional arguments
+):
+    """Low-level interface to NTG
+
+    Compute an optimal trajectory for a differentially flat system with
+    initial, trajectory, and final costs and constraints.
+
+    Parameters
+    ----------
+    nout : int
+        Number of flat outputs
+
+    breakpoints : 1D array-like
+        Array of times at which constraints should be evaluated and integrated
+        costs are computed.
+
+    Returns
+    -------
+    systraj : :class:`~ntg.SystemTrajectory` object
+        The system trajectory is returned as an object that implements the
+        `eval()` function, we can be used to compute the value of the state
+        and input and a given time t.
+
+    """
+    #
+    # Process parameters, just in case someone tried to slip something by
+    #
+
+    if knotpoints is None:
+        knotpoints = [np.linspace(0, breakpoints[-1], nintervals[i] + 1)
+                      for i in range(nout)]
+
     #
     # Create the C data structures needed for ntg()
+    #
+    # Finally we create all of the C data structures and functions required
+    # to all ntg().  All error checking should be done prior to this point,
+    # we we assume everything here makes sense.
     #
 
     # Utility functions to check dimensions and set up C arrays
@@ -498,7 +664,7 @@ def ntg(
     # Set up spline dimensions
     cdef int [:] c_ninterv = init_c_array_1d(nintervals, nout, np.intc)
     cdef int [:] c_order = init_c_array_1d(order, nout, np.intc)
-    cdef int [:] c_mult = init_c_array_1d(multiplicity, nout, np.intc)
+    cdef int [:] c_mult = init_c_array_1d(smoothness, nout, np.intc)
     cdef int [:] c_flaglen = init_c_array_1d(flaglen, nout, np.intc)
 
     # Breakpoints
@@ -515,7 +681,7 @@ def ntg(
     # Figure out the number of coefficients
     ncoef = 0
     for i in range(nout):
-        ncoef += nintervals[i] * (order[i] - multiplicity[i]) + multiplicity[i]
+        ncoef += nintervals[i] * (order[i] - smoothness[i]) + smoothness[i]
 
     # Coefficients: initial guess + return result
     if initial_guess is not None:
@@ -544,7 +710,6 @@ def ntg(
     #
     # Constraint callbacks
     #
-
     # Nonlinear initial condition constraints
     nnlic, nlic_addr, ninitialconstrav, c_initialconstrav = \
         _parse_callback(nlicf, nlicf_av, nout, c_flaglen, num=nlicf_num,
@@ -564,9 +729,9 @@ def ntg(
 
     # Bounds on the constraints
     nil = np.array([0.])        # Use as "empty" constraint matrix
-    cdef double [:] c_lowerb = nil if lowerb.size == 0 else \
+    cdef double [:] c_lowerb = nil if lowerb is None or lowerb.size == 0 else \
         lowerb.astype(np.double)
-    cdef double [:] c_upperb = nil if upperb.size == 0 else \
+    cdef double [:] c_upperb = nil if upperb is None or upperb.size == 0 else \
         upperb.astype(np.double)
     if verbose:
         print("  lower bounds = ", lowerb)
@@ -593,7 +758,9 @@ def ntg(
         _parse_callback(fcf, fcf_av, nout, c_flaglen, num=1, name='final cost')
     c_fcf = (<ntg_scalar_cbf *> fcf_addr)[0]
 
+    #
     # NTG internal memory
+    #
     cdef int *istate = <int *> calloc(
         ncoef + nlic + nltc * nbps + nlfc +
         nnlic + nnltc * nbps + nnlfc, sizeof(int))
@@ -609,6 +776,7 @@ def ntg(
     cdef int inform
     cdef double objective
 
+    # Call the NTG function to compute the trajectory (finally!)
     ntg.c_ntg(
         nout, &c_bps[0], nbps, &c_ninterv[0], &c_knots[0],
         &c_order[0], &c_mult[0], &c_flaglen[0], &c_coefs[0],
@@ -639,11 +807,13 @@ def ntg(
         coefs[k] = c_coefs[k]
 
     # Create a system trajectory object to store the result
+    # TODO: move this functionality to solve_flat_ocp
     systraj = SystemTrajectory(
-        coefs, nout, flaglen, knotpoints, order, multiplicity)
+        coefs, nout, flaglen, knotpoints, order, smoothness)
 
     return systraj, objective, inform
 
+# Evaluate the value of a spline at a given point `x`
 def spline_interp(x, knots, ninterv, coefs, order, mult, flaglen):
     cdef double [:] c_knots = knots
     cdef double [:] c_coefs = coefs
@@ -731,6 +901,14 @@ cdef (int, size_t, int, AV *) _parse_callback(
                 k = k + 1
 
     return <int> nfcn, c_fcn, <int> nav, c_av
+
+#
+# Numba signatures
+#
+# The following signatures can be used to create numba functions for costs
+# and constraints.  Note that functions evaluated along the trajectory have
+# an extra argument (i = breakpoint number).
+#
 
 # Cost function and constraint signatures
 from numba import types
