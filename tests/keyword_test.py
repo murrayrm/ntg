@@ -17,33 +17,26 @@ Tf = 5
 bps = np.linspace(0, Tf, 30)
 
 # Spline definition (default values)
-order = [6, 6]
+degree = [5, 5]
 smooth = [3, 3]
 knotpoints = [0, Tf/2, Tf]
-basis = ntg.BSplineFamily(nout, knotpoints, order, smooth)
+basis = ntg.BSplineFamily(knotpoints, degree, smooth, vars=nout)
 
 # Initial and final conditions
 z0 = np.array([[0., 8., 0.], [-2., 0., 0.]])
 zf = np.array([[40., 8., 0.], [2., 0., 0.]])
 
-# Trajecotry costs function
-from numba import types
-@numba.cfunc(
-    types.void(
-        types.CPointer(types.intc),       # int *mode
-        types.CPointer(types.intc),       # int *nstate
-        types.CPointer(types.intc),       # int *i
-        types.CPointer(types.double),     # double *f
-        types.CPointer(types.double),     # double *df
-        types.CPointer(                   # double **zp
-            types.CPointer(types.double))))
+# Trajectory costs function
+@numba.cfunc(ntg.numba_trajectory_cost_signature)
 def tcf_2d_curvature(mode, nstate, i, f, df, zp):
-    if mode[0] == 0 or mode[0] == 2:
+    if mode == 0 or mode == 2:
         f[0] = zp[0][2]**2 + zp[1][2]**2
 
-    if mode[0] == 1 or mode[0] == 2:
+    if mode == 1 or mode == 2:
         df[0] = 0; df[1] = 0; df[2] = 2 * zp[0][2];
         df[3] = 0; df[4] = 0; df[5] = 2 * zp[1][2];
+
+    return 0
 
 def test_icf_keywords():
     # Cost function: curvature
@@ -112,16 +105,16 @@ def test_knotpoints(knotpoints, exception):
     # Compute the basis function
     with expectation:
         basis = ntg.BSplineFamily(
-            nout, knotpoints, order, smooth)
+            knotpoints, degree, smooth, vars=nout)
 
 
 # TODO: figure out why commented out cases crash
 @pytest.mark.parametrize("kwargs, exception, match", [
     ({}, TypeError, "invalid flat system"),
-    ({'flaglen': 3, 'order': 6, 'smoothness': 3}, None, None),
-    ({'flaglen': 3, 'order': [2, 6], 'smoothness': 3}, None, None),
+    ({'flaglen': 3, 'degree': 5, 'smoothness': 3}, None, None),
+    ({'flaglen': 3, 'degree': [4, 5], 'smoothness': 3}, None, None),
     # ({'flaglen': 3, 'verbose': True}, None, None),
-    ({'flaglen': 3, 'order': [2, 6, 1], 'smoothness': 3}, ValueError, None),
+    ({'flaglen': 3, 'degree': [1, 5, 1], 'smoothness': 3}, ValueError, None),
     ])
 def test_spline_parameters(kwargs, exception, match):
     # Set the exception manager
@@ -138,5 +131,5 @@ def test_spline_parameters(kwargs, exception, match):
 
         # Spline setup
         new_basis = ntg.BSplineFamily(
-            nout, knotpoints, kwargs.pop('order', basis.order),
-            kwargs.pop('smoothness', basis.smoothness))
+            knotpoints, kwargs.pop('degree', basis.degree),
+            kwargs.pop('smoothness', basis.smoothness), vars=nout)

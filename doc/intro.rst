@@ -118,12 +118,123 @@ NTG solves an optimal control problem of the form
    V_0 \bigl( \bar z(0) \bigr) + \int_0^{T_\text{f}} L(\bar z(t))\, dt +
    V_f \bigl( \bar z(T_\text{f}) \bigr)
 
-subject to the constraints
+subject to a collection of linear and nonlinear constraints at the
+initial, intermediate, and final time points:
 
 .. math::
 
-   \begin{aligned}
-     &L_0 \leq A_0\, \bar z (T_0) \leq U_0 \\
-     &L_i \leq A_i\, \bar z (T_i) \leq U_i \\
-     &L_f \leq A_f\, \bar z (T_f) \leq U_f \\
-   \end{aligned}
+   L_0 \leq \begin{bmatrix}
+       A_0\, \bar z (T_0) \\ F_0(\bar z(T_0))
+     \end{bmatrix} \leq U_0, \qquad
+   L_i \leq \begin{bmatrix}
+       A_i\, \bar z (T_i) \\ F_i(\bar z(T_i))
+     \end{bmatrix} \leq U_i, \qquad
+   L_\text{f} \leq \begin{bmatrix}
+     A_\text{f}\, \bar z (T_\text{f}) \\ F_\text{f}(\bar z(T_\text{f}))
+   \end{bmatrix} \leq U_f.
+
+NTG represents the flat outputs of the system using B-splines, which
+form a basis for piecewise smooth polynomials that have a specified
+level of smoothness at the breakpoints between intervals.
+
+To create a trajectory for a differentially flat system, a
+:class:`~ntg.FlatSystem` object must be created.  This is done by
+specifying the :class:`~ntg:FlatSystem` constructor with the number of
+flat outputs and the number of derivatives for each output::
+
+    sys = ntg.FlatSystem(nout, flaglen)
+
+In addition to the flat system description, a set of basis functions
+:math:`\phi_i(t)` must be chosen.  The :class:`~ntg.BSplineFamily`
+class is used to represent the basis functions::
+
+    basis = ntg.BSpline(breakpoints, order[, smoothness)
+
+Once the system and basis function have been defined, the
+:func:`~ntg.solve_flat_ocp` function can be used to solve an optimal
+control problem::
+
+    traj = ntg.solve_flat_ocp(
+        sys, timepts, initial_constraints=initial,
+	trajectory_cost=cost, final_constraints=final, basis=basis)
+
+The `cost` parameter is a function function with call signature
+`cost(zflag)` and should return the (incremental) cost at the given
+value of the flat output and its derivatives.  It will be evaluated at
+each point in the `timepts` vector.  The `initial_constraints` and
+`terminal_constraints` parameters can be used to specify the initial
+and final conditions.
+
+A typical usage is to constraint the initial and final values of the
+flat flag and place a cost function on higher derivatives of the flag.
+This can be achieved using the :func:`~ntg.flag_value_constraint`
+and :func:`~ntg.quadratic_cost` functions::
+
+    initial = ntg.flag_equality_constraint(sys, Z0)
+    final = ntg.flag_equality_constraint(sys, Zf)
+    cost = ntg.quadratic_cost(sys, [Q_1, ..., Q_m], Zd)
+
+The returned object from :func:`~ntg.solve_flat_ocp` has class
+:class:`~ntg.SystemTrajectory` and can be used to compute the state
+and input trajectory between the initial and final condition::
+
+    ztraj = traj.eval(T)
+
+where `T` is a list of times on which the trajectory should be evaluated
+(e.g., `T = numpy.linspace(0, Tf, M)`.
+
+The :func:`~ntg.solve_flat_ocp` function also allows the specification
+of a initial and terminal cost function as well as trajectory
+constraints.  Constraints can either be linear or nonlinear.
+
+
+Example
+=======
+
+To illustrate how we can use NTG to compute an optimal trajectory for
+a nonlinear system, consider the problem of steering a car to change
+lanes on a road.  A more complete description of the system can be
+found in the course notes *Optimization-Based Control*
+[http://fbswiki.org/OBC].
+
+.. code-block:: python
+
+    import ntg
+    import numpy as np
+
+    # The system has two flat outputs with flag of length 3 in each
+    vehicle_flat = ntg.FlatSystem(2, [3, 3])
+
+To find a trajectory from an initial flag value :math:`Z_0` to a final
+flag value of :math:`F_\text{f}` in time :math:`T_\text{f}` we solve a
+point-to-point trajectory generation problem while minimizing the
+curvature of the trajectory (corresponding to minimizing the steering
+wheel angle :math:`\delta` along the trajectory).
+
+.. code-block:: python
+
+    # Define the endpoints of the trajectory
+    Z0 = ([  0, 10, 0], [-2, 0, 0])
+    Zf = ([100, 10, 0], [ 2, 0, 0])
+    Tf = 10
+
+    # Define a set of basis functions to use for the trajectories
+    # TODO: update to python-control signature
+    basis = ntg.BSplineFamily(2, [0, Tf/2, Tf], 6)
+
+    # Define the initial and final states
+    initial = ntg.flag_equality_constraint(vehicle_flat, Z0)
+    final = ntg.flag_equality_constraint(vehicle_flat, Zf)
+
+    # Define the cost along the trajectory: penalize steering angle
+    costfun = ntg.quadratic_cost(
+        vehicle_flat, [np.diag([0, 0, 1]), np.diag([0, 0, 1])])
+
+    # Define the time points and solve the optimal control problem
+    timepts = np.linspace(0, Tf, 10)
+    traj, cost, _ = ntg.solve_flat_ocp(		# TODO: redo signature
+        vehicle_flat, timepts, basis=basis, trajectory_cost=costfun,
+	initial_constraints=initial, final_constraints=final)
+
+    T = np.linspace(0, Tf, 100)
+    ztraj = traj.eval(T)

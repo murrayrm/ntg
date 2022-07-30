@@ -12,7 +12,7 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../python'))
+sys.path.insert(0, os.path.abspath('../'))
 
 # Use the readthedocs.org theme if installed
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
@@ -40,7 +40,7 @@ import ntg
 # ones.
 extensions = [
     'sphinx.ext.autodoc', 'sphinx.ext.imgmath', 'sphinx.ext.autosummary',
-    'numpydoc',
+    'numpydoc', 'sphinx.ext.viewcode',
 ]
 
 # scan documents for autosummary directives and generate stub pages for each.

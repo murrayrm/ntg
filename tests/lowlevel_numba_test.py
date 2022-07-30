@@ -9,7 +9,7 @@ import pytest
 
 # Numba version
 from numba import types, carray
-@numba.cfunc(ntg.numba_trajectory_cost_signature)
+@numba.cfunc(ntg.numba_ntg_trajectory_cost_signature)
 def tcf_2d_curvature(mode, nstate, i, f, df, zp):
     if mode[0] == 0 or mode[0] == 2:
         f[0] = zp[0][2]**2 + zp[1][2]**2
@@ -17,6 +17,7 @@ def tcf_2d_curvature(mode, nstate, i, f, df, zp):
     if mode[0] == 1 or mode[0] == 2:
         df[0] = 0; df[1] = 0; df[2] = 2 * zp[0][2];
         df[3] = 0; df[4] = 0; df[5] = 2 * zp[1][2];
+
 
 @pytest.mark.parametrize("ninterv", [[2, 2], [2, 3]]) # [1, 1]
 @pytest.mark.parametrize("mult", [[2, 2], [3, 4]])
@@ -86,7 +87,7 @@ ifc_weight = 100                # initial/final cost weight
 z0 = np.array([[0., 0., 0.], [-2., 0., 0.]])
 zf = np.array([[40., 0., 0.], [2., 0., 0.]])
 
-@numba.cfunc(ntg.numba_endpoint_cost_signature)
+@numba.cfunc(ntg.numba_ntg_endpoint_cost_signature)
 def nl_2d_initial_cost(mode, nstate, f, df, zp):
     if mode[0] == 0 or mode[0] == 2:
         # compute cost function: square distance from initial value
@@ -102,7 +103,8 @@ def nl_2d_initial_cost(mode, nstate, f, df, zp):
                 df[i * FLAGLEN + j] = 2 * ifc_weight * \
                          (zp[i][j] - z0[i][j]);
 
-@numba.cfunc(ntg.numba_endpoint_cost_signature)
+
+@numba.cfunc(ntg.numba_ntg_endpoint_cost_signature)
 def nl_2d_final_cost(mode, nstate, f, df, zp):
     if mode[0] == 0 or mode[0] == 2:
         # compute cost function: square distance from initial value
@@ -341,7 +343,7 @@ def test_2d_curvature_corridor_single(nltcf_avs):
     # Now impose a "corridor" constraint that forces the trajectory to cost
     # a bit more.
     #
-    @numba.cfunc(ntg.numba_trajectory_constraint_signature)
+    @numba.cfunc(ntg.numba_ntg_trajectory_constraint_signature)
     def nltcf_corridor(mode, nstate, i, f, df, zp):
         m = (zf[3] - z0[3]) / (zf[0] - z0[0])
         b = z0[3];
@@ -469,7 +471,7 @@ def test_2d_curvature_corridor_multiple():
     # Now impose a "corridor" constraint that forces the trajectory to cost
     # a bit more.
     #
-    @numba.cfunc(ntg.numba_trajectory_constraint_signature)
+    @numba.cfunc(ntg.numba_ntg_trajectory_constraint_signature)
     def nltcf_corridor(mode, nstate, i, f, df, zp):
         m = (zf[3] - z0[3]) / (zf[0] - z0[0])
         b = z0[3];

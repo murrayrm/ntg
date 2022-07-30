@@ -50,15 +50,27 @@ cdef extern from "../src/ntg.h":
     )
 
 # Define a type for call back functions
-ctypedef void (*ntg_scalar_cbf)(
+ctypedef void (*ntg_scalar_endpoint_cbf)(
     int *mode, int *nstate, double *f, double *df, double **zp) nogil
 
-ctypedef void (*ntg_scalar_traj_cbf)(
+ctypedef int (*ocp_scalar_endpoint_cbf)(
+    int mode, int nstate, double *f, double *df, double **zp) nogil
+
+ctypedef void (*ntg_scalar_trajectory_cbf)(
     int *mode, int *nstate, int *i, double *f, double *df, double **zp) nogil
 
-ctypedef void (*ntg_vector_cbf)(
+ctypedef int (*ocp_scalar_trajectory_cbf)(
+    int mode, int nstate, int i, double *f, double *df, double **zp) nogil
+
+ctypedef void (*ntg_vector_endpoint_cbf)(
     int *mode, int *nstate, double *f, double **df, double **zp) nogil
 
-ctypedef void (*ntg_vector_traj_cbf)(
+ctypedef int (*ocp_vector_endpoint_cbf)(
+    int mode, int nstate, double *f, double **df, double **zp) nogil
+
+ctypedef void (*ntg_vector_trajectory_cbf)(
     int *mode, int *nstate, int *i, double *f, double **df, double **zp) nogil
+
+ctypedef int (*ocp_vector_trajectory_cbf)(
+    int mode, int nstate, int i, double *f, double **df, double **zp) nogil
 
